@@ -1,0 +1,42 @@
+{
+  "name": "tecpap-audit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TECPAP Internal Audit Management Platform",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "build:packages": "pnpm --filter \"./packages/*\" run build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "test:e2e": "turbo test:e2e",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml,mjs,cjs}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml,mjs,cjs}\"",
+    "db:generate": "pnpm --filter @tecpap/api db:generate",
+    "db:migrate": "pnpm --filter @tecpap/api db:migrate",
+    "db:migrate:dev": "pnpm --filter @tecpap/api db:migrate:dev",
+    "db:seed": "pnpm --filter @tecpap/api db:seed",
+    "db:studio": "pnpm --filter @tecpap/api db:studio",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "prebuild": "pnpm db:generate",
+    "predev": "pnpm build:packages && pnpm db:generate",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.6.1",
+    "@commitlint/config-conventional": "^19.6.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.3.0",
+    "prettier": "^3.4.2",
+    "prettier-plugin-tailwindcss": "^0.6.9",
+    "turbo": "^2.3.3",
+    "typescript": "^5.5.4"
+  }
+}

@@ -1,0 +1,28 @@
+# syntax=docker/dockerfile:1
+# TECPAP Audit — Next.js frontend image.
+# Single-stage on purpose for reliability in a monorepo; optimize to
+# multi-stage / output: standalone in a later hardening pass.
+FROM node:20-alpine
+RUN apk add --no-cache libc6-compat
+RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
+
+WORKDIR /app
+
+# Don't run git hooks or prune devDeps during the image build — the toolchain
+# (tsc, eslint, prisma, tsx) is needed to build, and there's no .git in the image.
+ENV HUSKY=0
+
+# NEXT_PUBLIC_* vars are inlined at build time.
+ARG NEXT_PUBLIC_API_URL=http://localhost:4000
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+
+COPY . .
+RUN pnpm install --frozen-lockfile
+RUN pnpm --filter @tecpap/web... build
+
+WORKDIR /app/apps/web
+ENV NODE_ENV=production
+ENV PORT=3000
+EXPOSE 3000
+
+CMD ["pnpm", "start"]

@@ -1,0 +1,38 @@
+# Version control & metadata
+.git
+.gitignore
+.github
+
+# Dependencies (installed inside the image)
+**/node_modules
+
+# Build artifacts (built inside the image)
+**/dist
+**/build
+**/.next
+**/.turbo
+**/.tsbuildinfo
+
+# Testing & coverage
+**/coverage
+**/playwright-report
+**/test-results
+
+# Docs & misc
+docs
+*.md
+!README.md
+
+# Env (compose injects env; never bake secrets into images)
+.env
+.env.*
+!.env.example
+
+# Local docker data
+.docker-data
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.idea
+.vscode

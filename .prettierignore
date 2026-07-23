@@ -1,0 +1,16 @@
+node_modules
+**/node_modules
+.next
+**/.next
+dist
+**/dist
+build
+.turbo
+**/.turbo
+coverage
+playwright-report
+test-results
+pnpm-lock.yaml
+package-lock.json
+.husky
+docs

@@ -1,0 +1,126 @@
+# TECPAP Audit Platform — local & development orchestration.
+# Usage:
+#   cp .env.example .env
+#   docker compose up -d                 # web, api, postgres, minio
+#   docker compose --profile dev up -d   # also starts pgAdmin
+name: tecpap-audit
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-tecpap}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tecpap_password}
+      POSTGRES_DB: ${POSTGRES_DB:-tecpap_audit}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-tecpap} -d ${POSTGRES_DB:-tecpap_audit}']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-tecpap_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-tecpap_minio_secret}
+    ports:
+      - '${MINIO_PUBLIC_PORT:-9000}:9000'
+      - '9001:9001'
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      API_PORT: '4000'
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      API_URL: ${API_URL:-http://localhost:4000}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-tecpap}:${POSTGRES_PASSWORD:-tecpap_password}@postgres:5432/${POSTGRES_DB:-tecpap_audit}?schema=public
+      DIRECT_URL: postgresql://${POSTGRES_USER:-tecpap}:${POSTGRES_PASSWORD:-tecpap_password}@postgres:5432/${POSTGRES_DB:-tecpap_audit}?schema=public
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-900}
+      JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-604800}
+      BCRYPT_SALT_ROUNDS: ${BCRYPT_SALT_ROUNDS:-12}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-tecpap_minio}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-tecpap_minio_secret}
+      MINIO_USE_SSL: 'false'
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@tecpap.local}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-ChangeMe123!}
+    command: >
+      sh -c "cd /app/apps/api &&
+             pnpm exec prisma migrate deploy &&
+             pnpm exec tsx prisma/seed.ts &&
+             node dist/main.js"
+    ports:
+      - '${API_PORT:-4000}:4000'
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:4000/health || exit 1']
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+    ports:
+      - '${WEB_PORT:-3000}:3000'
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:3000 || exit 1']
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    profiles: ['dev']
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@tecpap.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-tecpap_admin}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - '${PGADMIN_PORT:-5050}:80'
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+
+volumes:
+  postgres-data:
+  minio-data:
+  pgadmin-data:

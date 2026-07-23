@@ -1,0 +1,156 @@
+// TECPAP Audit Platform — Prisma schema
+// Phase 2: Identity & Administration (users, roles, permissions, departments, audit log).
+// Audit/document/reporting entities arrive in later phases. See SAD §8.
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  LOCKED
+}
+
+enum DepartmentStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model User {
+  id                     String          @id @default(uuid())
+  email                  String          @unique
+  passwordHash           String
+  firstName              String
+  lastName               String
+  employeeNumber         String?
+  phone                  String?
+  avatar                 String?
+  status                 UserStatus      @default(ACTIVE)
+  lastLoginAt            DateTime?
+  failedLoginCount       Int             @default(0)
+  lockedUntil            DateTime?
+  passwordResetToken     String?
+  passwordResetExpiresAt DateTime?
+
+  roleId                 String
+  role                   Role            @relation("UserRoles", fields: [roleId], references: [id])
+
+  departmentId           String?
+  department             Department?     @relation("DepartmentMembers", fields: [departmentId], references: [id])
+
+  managedDepartments     Department[]    @relation("DepartmentManager")
+  refreshTokens          RefreshToken[]
+  auditLogs              AuditLog[]      @relation("AuditLogActor")
+
+  // Soft delete only — never permanently removed.
+  deletedAt              DateTime?
+
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+
+  @@index([roleId])
+  @@index([departmentId])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("users")
+}
+
+model Role {
+  id          String       @id @default(uuid())
+  name        String       @unique
+  slug        String       @unique
+  description String?
+  // System roles cannot be deleted.
+  isSystem    Boolean      @default(false)
+  // Global roles bypass department data-scoping.
+  isGlobal    Boolean      @default(false)
+  permissions Permission[]
+  users       User[]       @relation("UserRoles")
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  group       String
+  label       String?
+  description String?
+  roles       Role[]
+
+  createdAt   DateTime @default(now())
+
+  @@index([group])
+  @@map("permissions")
+}
+
+model Department {
+  id          String           @id @default(uuid())
+  code        String           @unique
+  name        String
+  description String?
+  sortOrder   Int              @default(0)
+  status      DepartmentStatus @default(ACTIVE)
+
+  managerId   String?
+  manager     User?            @relation("DepartmentManager", fields: [managerId], references: [id], onDelete: SetNull)
+
+  users       User[]           @relation("DepartmentMembers")
+
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([status])
+  @@map("departments")
+}
+
+model RefreshToken {
+  id             String        @id @default(uuid())
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash      String        @unique
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  replacedById   String?
+  replacedBy     RefreshToken? @relation("RefreshTokenReplacement", fields: [replacedById], references: [id])
+  replacedByFrom RefreshToken[] @relation("RefreshTokenReplacement")
+
+  createdAt      DateTime      @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+/// Immutable audit log. Append-only by design — the application exposes no
+/// update/delete path, and rows reference a nullable actor so logs survive
+/// user soft-deletion (SAD §10.3, §17.6).
+model AuditLog {
+  id         String    @id @default(uuid())
+  actorId    String?
+  actor      User?     @relation("AuditLogActor", fields: [actorId], references: [id], onDelete: SetNull)
+  action     String
+  entityType String
+  entityId   String?
+  target     String?
+  ipAddress  String?
+  userAgent  String?
+  metadata   Json?
+  createdAt  DateTime  @default(now())
+
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
