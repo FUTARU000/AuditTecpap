@@ -5,9 +5,11 @@ import type { AuditLogDto, PaginatedResult } from '@tecpap/types';
 import { Badge } from '@tecpap/ui';
 import { api } from '@/lib/api';
 import { EmptyState, ErrorState, PageHeader, Pagination } from '@/components/admin/common';
+import { useTranslation } from '@/lib/i18n';
 
 export default function AuditLogPage() {
   const [data, setData] = useState<PaginatedResult<AuditLogDto> | null>(null);
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -31,7 +33,7 @@ export default function AuditLogPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
-      <PageHeader title="Audit log" description="Immutable, append-only record of administrative actions." />
+      <PageHeader title={t('page.audit_log', 'Audit log')} description={t('page.audit_log_desc')} />
 
       <div className="overflow-hidden rounded-lg border border-border bg-card">
         {error ? (
@@ -64,7 +66,7 @@ export default function AuditLogPage() {
             </table>
           </div>
         ) : (
-          <EmptyState title="No audit entries yet" description="Administrative actions will appear here." />
+          <EmptyState title={t('empty.no_logs', 'No audit entries yet')} description="Administrative actions will appear here." />
         )}
         {data ? (
           <div className="border-t border-border px-4">

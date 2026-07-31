@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { EmptyState, ErrorState, PageHeader } from '@/components/admin/common';
+import { useTranslation } from '@/lib/i18n';
 
 interface DeptForm {
   code: string;
@@ -43,6 +44,7 @@ const EMPTY_FORM: DeptForm = { code: '', name: '', description: '', sortOrder: '
 
 export default function DepartmentsPage() {
   const [departments, setDepartments] = useState<DepartmentDto[]>([]);
+  const { t } = useTranslation();
   const [stats, setStats] = useState<DepartmentStatsDto | null>(null);
   const [managers, setManagers] = useState<UserDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -128,8 +130,8 @@ export default function DepartmentsPage() {
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
       <PageHeader
-        title="Departments"
-        description="Organizational units used for data-scoping and assignment."
+        title={t('page.departments', 'Departments')}
+        description={t('page.departments_desc')}
         action={
           <Button onClick={openCreate}>
             <PlusCircle className="size-4" /> New department

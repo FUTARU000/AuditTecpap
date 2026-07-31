@@ -9,13 +9,28 @@ import { DepartmentScopeGuard } from './common/guards/department-scope.guard';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { RolesGuard } from './common/guards/roles.guard';
+import { ActivityTimelineModule } from './modules/activity-timeline/activity-timeline.module';
 import { AuditLogModule } from './modules/audit-log/audit-log.module';
+import { AuditTemplatesModule } from './modules/audit-templates/audit-templates.module';
+import { AuditsModule } from './modules/audits/audits.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { BusinessObjectsModule } from './modules/business-objects/business-objects.module';
+import { CapaModule } from './modules/capa/capa.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { DepartmentsModule } from './modules/departments/departments.module';
+import { DocumentCategoriesModule } from './modules/document-categories/document-categories.module';
+import { DocumentsModule } from './modules/documents/documents.module';
 import { HealthModule } from './modules/health/health.module';
+import { ImportModule } from './modules/import/import.module';
+import { KpisModule } from './modules/kpis/kpis.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
 import { PrismaModule } from './modules/prisma/prisma.module';
+import { ProcessesModule } from './modules/processes/processes.module';
+import { ProcessRisksModule } from './modules/process-risks/process-risks.module';
+import { ProcessWorkspaceModule } from './modules/process-workspace/process-workspace.module';
 import { RolesModule } from './modules/roles/roles.module';
+import { SearchModule } from './modules/search/search.module';
+import { StorageModule } from './modules/storage/storage.module';
 import { UsersModule } from './modules/users/users.module';
 
 @Module({
@@ -38,6 +53,7 @@ import { UsersModule } from './modules/users/users.module';
       validate: (config) => parseEnv(config),
     }),
     PrismaModule,
+    StorageModule,
     AuditLogModule,
     HealthModule,
     AuthModule,
@@ -45,6 +61,20 @@ import { UsersModule } from './modules/users/users.module';
     RolesModule,
     PermissionsModule,
     DepartmentsModule,
+    ProcessesModule,
+    DocumentCategoriesModule,
+    DocumentsModule,
+    DashboardModule,
+    ImportModule,
+    ActivityTimelineModule,
+    BusinessObjectsModule,
+    KpisModule,
+    ProcessRisksModule,
+    ProcessWorkspaceModule,
+    SearchModule,
+    AuditTemplatesModule,
+    AuditsModule,
+    CapaModule,
   ],
   // Execution order = registration order: rate-limit → authenticate → authorize → scope.
   providers: [

@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { Badge, cn } from '@tecpap/ui';
 import { navSections, type NavItem } from '@/lib/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { useTranslation } from '@/lib/i18n';
 
 interface NavListProps {
   onNavigate?: () => void;
@@ -13,6 +14,7 @@ interface NavListProps {
 export function NavList({ onNavigate }: NavListProps) {
   const pathname = usePathname();
   const { hasPermission } = useAuth();
+  const { t } = useTranslation();
 
   return (
     <nav className="flex flex-col gap-6 px-3 py-4" aria-label="Main navigation">
@@ -26,7 +28,7 @@ export function NavList({ onNavigate }: NavListProps) {
         return (
           <div key={section.title} className="flex flex-col gap-1">
             <p className="px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              {section.title}
+              {t(`section.${section.title}`, section.title)}
             </p>
             {visible.map((item) => (
               <NavRow key={item.label} item={item} pathname={pathname} onNavigate={onNavigate} />
@@ -45,6 +47,7 @@ interface NavRowProps {
 }
 
 function NavRow({ item, pathname, onNavigate }: NavRowProps) {
+  const { t } = useTranslation();
   const Icon = item.icon;
   const active =
     typeof item.href === 'string' &&
@@ -54,7 +57,7 @@ function NavRow({ item, pathname, onNavigate }: NavRowProps) {
     return (
       <span className="flex cursor-not-allowed items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground/50">
         <Icon className="size-4" />
-        <span>{item.label}</span>
+        <span>{t(`nav.${item.label}`, item.label)}</span>
         <Badge variant="outline" className="ml-auto border-transparent bg-muted px-1.5 py-0 text-[10px] text-muted-foreground">
           soon
         </Badge>
@@ -75,7 +78,7 @@ function NavRow({ item, pathname, onNavigate }: NavRowProps) {
       )}
     >
       <Icon className="size-4" />
-      <span>{item.label}</span>
+      <span>{t(`nav.${item.label}`, item.label)}</span>
     </Link>
   );
 }

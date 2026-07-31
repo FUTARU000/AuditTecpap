@@ -8,12 +8,32 @@ import { useAuth } from '@/lib/auth-context';
 
 const TITLES: Record<string, string> = {
   '/dashboard': 'Dashboard',
+  '/documents': 'Documents',
+  '/processes': 'Processes',
+  '/audit-templates': 'Audit templates',
+  '/audits': 'Audits',
+  '/capas': 'CAPA',
+  '/business-objects': 'Business objects',
+  '/kpis': 'KPIs',
+  '/risks': 'Risks',
+  '/search': 'Search',
   '/admin/users': 'Users',
   '/admin/roles': 'Roles',
   '/admin/permissions': 'Permissions',
   '/admin/departments': 'Departments',
+  '/admin/categories': 'Categories',
   '/admin/audit-log': 'Audit log',
 };
+
+function deriveTitle(pathname: string): string {
+  if (TITLES[pathname]) return TITLES[pathname];
+  if (pathname.startsWith('/processes/')) return 'Process workspace';
+  if (pathname.startsWith('/business-objects/')) return 'Business object';
+  if (pathname.startsWith('/audit-templates/')) return 'Template';
+  if (pathname.startsWith('/audits/')) return 'Audit execution';
+  if (pathname.startsWith('/capas/')) return 'CAPA workspace';
+  return 'TECPAP Audit';
+}
 
 interface AppShellProps {
   children: ReactNode;
@@ -24,7 +44,7 @@ export function AppShell({ children }: AppShellProps) {
   const { user, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const title = TITLES[pathname] ?? 'TECPAP Audit';
+  const title = deriveTitle(pathname);
 
   useEffect(() => {
     if (!loading && !user) {

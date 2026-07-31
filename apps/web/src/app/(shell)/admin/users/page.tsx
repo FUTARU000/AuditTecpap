@@ -50,6 +50,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { EmptyState, ErrorState, PageHeader, Pagination, SortHeader, TableSkeleton } from '@/components/admin/common';
+import { useTranslation } from '@/lib/i18n';
 
 const STATUS_OPTIONS: Array<{ value: UserStatus; label: string }> = [
   { value: 'ACTIVE', label: 'Active' },
@@ -88,6 +89,7 @@ const EMPTY_FORM: FormState = {
 
 export default function UsersPage() {
   const [data, setData] = useState<PaginatedResult<UserDto> | null>(null);
+  const { t } = useTranslation();
   const [roles, setRoles] = useState<RoleDto[]>([]);
   const [departments, setDepartments] = useState<DepartmentDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -255,8 +257,8 @@ export default function UsersPage() {
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
       <PageHeader
-        title="Users"
-        description="Manage accounts, roles and department assignments."
+        title={t('page.users', 'Users')}
+        description={t('page.users_desc')}
         action={
           <Button onClick={openCreate}>
             <PlusCircle className="size-4" /> New user
@@ -378,7 +380,7 @@ export default function UsersPage() {
             </table>
           </div>
         ) : (
-          <EmptyState title="No users found" description="Try adjusting your search or filters, or create a new user." />
+          <EmptyState title={t('empty.no_users', 'No users found')} description="Try adjusting your search or filters, or create a new user." />
         )}
         {data ? (
           <div className="border-t border-border px-4">

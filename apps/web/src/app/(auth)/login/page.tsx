@@ -6,12 +6,14 @@ import { ClipboardCheck, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button, Card, CardContent, Input, Label } from '@tecpap/ui';
 import { useAuth } from '@/lib/auth-context';
+import { useTranslation } from '@/lib/i18n';
 import { RequestError } from '@/lib/api';
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { login } = useAuth();
+  const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -35,7 +37,7 @@ function LoginForm() {
       <CardContent className="p-6">
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
           <div className="flex flex-col gap-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t('common.email', 'Email')}</Label>
             <Input
               id="email"
               type="email"
@@ -49,7 +51,7 @@ function LoginForm() {
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">{t('common.password', 'Password')}</Label>
             <Input
               id="password"
               type="password"
@@ -64,12 +66,12 @@ function LoginForm() {
 
           <Button type="submit" disabled={submitting} className="w-full">
             {submitting ? <Loader2 className="size-4 animate-spin" /> : null}
-            Sign in
+            {t('login.button', 'Sign in')}
           </Button>
         </form>
 
         <p className="mt-4 text-center text-xs text-muted-foreground">
-          Default admin: <span className="font-mono">admin@tecpap.local</span> / <span className="font-mono">ChangeMe123!</span>
+          admin@tecpap.ma / Admin123! · audit.manager@tecpap.ma / Audit123! · pilot.production@tecpap.ma / Pilot123!
         </p>
       </CardContent>
     </Card>
@@ -77,6 +79,7 @@ function LoginForm() {
 }
 
 export default function LoginPage() {
+  const { t } = useTranslation();
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-muted px-4 py-10">
       <div className="mb-6 flex flex-col items-center gap-3 text-center">
@@ -84,8 +87,8 @@ export default function LoginPage() {
           <ClipboardCheck className="size-6" />
         </span>
         <div>
-          <p className="text-lg font-semibold text-foreground">TECPAP Audit Platform</p>
-          <p className="text-sm text-muted-foreground">Sign in to your account</p>
+          <p className="text-lg font-semibold text-foreground">{t('login.title', 'TECPAP Audit Platform')}</p>
+          <p className="text-sm text-muted-foreground">{t('login.subtitle', 'Sign in to your account')}</p>
         </div>
       </div>
       <Suspense fallback={null}>

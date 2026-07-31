@@ -4,9 +4,11 @@ Internal audit management platform for **TECPAP** (packaging manufacturer, Bousk
 Centralizes audit planning, execution, findings, corrective actions, document/certificate
 control, reporting and dashboards — replacing spreadsheets, paper checklists and scattered PDFs.
 
-> **Status — Phase 2 (Identity & Administration).** Foundations plus full identity management:
-> authentication (login/JWT/refresh), DB-driven RBAC, users/roles/permissions/departments CRUD,
-> an immutable audit log, and the Administration UI. No audit-programme features yet. See
+> **Status — Phase 5 (Audit Management & Digital Checklist Engine).** Auditors and pilots now run
+> audits inside the app: reusable templates (sections → questions, 9 question types), audit
+> scheduling/execution with autosave + compliance scoring, a review/approve/return workflow,
+> findings (4 severities), optional MinIO evidence, PDF + Excel reports, workspace + dashboard
+> audit widgets, and timeline events. CAPA & continuous improvement come next. See
 > [`docs/SAD-TECPAP-Audit-Platform.md`](docs/SAD-TECPAP-Audit-Platform.md) for the architecture.
 
 ---
@@ -238,6 +240,113 @@ no update or delete path anywhere in the application. Browse it at `/admin/audit
 
 Full Swagger docs at **`/docs`** (non-production). The frontend Administration section lives under
 `/admin/{users,roles,permissions,departments,audit-log}` and is gated by the user's permissions.
+
+---
+
+## Quality Management System (Phase 3)
+
+The QMS reproduces TECPAP's real documentation hierarchy, fully database-driven (no hardcoded folders):
+
+```
+Department → Process → Category → Controlled Documents → Versions → Evidence
+```
+
+- **Processes** — owned by a department (code, objectives, scope, risks, opportunities, KPIs, status). CRUD with soft delete + audit.
+- **Document categories** — DB-driven, 12 seeded defaults (Procedure, Work Instruction, Specification, Form, Record, …); administrators add more.
+- **Controlled documents** — title, code, department, process, category, owner/reviewer/approver, keywords, confidentiality, effective/review/expiration dates; a **status lifecycle** (`DRAFT → UNDER_REVIEW → APPROVED → PUBLISHED → OBSOLETE / ARCHIVED`) with granular permissions.
+- **Versioning** — every document owns immutable versions; bytes live in **MinIO**, metadata in Postgres; only the latest approved version is active. Supported uploads: `pdf, docx, xlsx, pptx, png, jpg, jpeg, svg`.
+- **Relationships** — typed many-to-many between documents: `USES`, `GENERATES`, `REFERENCES`, `REPLACES`, `ATTACHMENT` (e.g. a Procedure *uses* a Form that *generates* a Record).
+- **Search** — **PostgreSQL full-text search**: a trigger-maintained `tsvector` over title/code/description/keywords with a GIN index, ranked via `ts_rank` + `ts_headline` snippets.
+- **Tree navigation** — a dynamic `GET /documents/tree` builds Department → Process → Category nodes with live counts.
+- **RBAC / scoping** — pilots can never read another department's documents; `departmentScopeWhere` is applied to every query.
+- **Audit log** — document create/update, version upload/approve, status change, archive/restore, relation add/remove.
+- **Dashboard** — `GET /dashboard/stats` aggregates documents/processes, by-status counts, drafts, published, expiring, awaiting-approval and recent activity.
+- **Import-ready architecture** — `DocumentParser` interface + `ParserRegistry` + `ImportService` + `ImportJob` runner. No parsers ship yet; the future Google-Drive import just registers parsers (Word/Excel/PowerPoint/PDF/CSV/ZIP, later AI extraction) with **no redesign**.
+
+### Quality Management API (versioned `/api/v1`)
+
+| Resource    | Endpoints                                                                                                                                                                  |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Processes   | `GET/POST /processes`, `GET/PATCH/DELETE /processes/:id`                                                                                                                  |
+| Categories  | `GET/POST /document-categories`, `GET /document-categories/active`, `PATCH/DELETE /document-categories/:id`                                                              |
+| Documents   | `GET/POST /documents`, `GET/PATCH/DELETE /documents/:id`, `POST /documents/:id/status`, `POST /documents/:id/restore`, `GET /documents/tree`, `GET /documents/search?q=` |
+| Versions    | `GET /documents/:id/versions`, `POST` (multipart) `/documents/:id/versions`, `PATCH /documents/:id/versions/:versionId/approve`, `GET …/download`                        |
+| Relations   | `GET/POST /documents/:id/relations`, `DELETE /documents/:id/relations/:relationId`                                                                                       |
+| Dashboard   | `GET /dashboard/stats`                                                                                                                                                    |
+
+The frontend lives under `/documents` (tree + list + detail with versions, relationships and timeline),
+`/processes`, `/admin/categories`, `/search`, and a real `/dashboard`. Dark mode is supported throughout.
+
+---
+
+## Business Process & Operational Management (Phase 4)
+
+The platform is now **process-centric** — documents and operational entities attach to processes, never
+to folders. Every process has a workspace (`GET /processes/:id/workspace`) aggregating:
+
+- Overview, objectives, scope, owner · KPIs · risks · responsibilities · related documents · business objects · activity timeline · statistics
+
+New operational domain:
+
+- **Business objects** — a generic, reusable entity (Production Orders, Suppliers, Machines, Employees, …) with a configurable type catalog (17 seeded), JSON `attributes`, ownership, soft delete, department + process scoping, audit logging and timeline events. Dedicated Customer/Supplier/Equipment modules will specialize this generic core in future phases.
+- **KPIs** — configurable (name, formula, target, warning/critical thresholds, frequency, responsible user, dept/process); `PATCH /kpis/:id/value` records a measurement (the hook future ERP/IoT data sources call) and emits a timeline event.
+- **Process risks** — title, probability × impact → auto-computed `riskScore`, owner, mitigation, review date, status; department-scoped via the owning process.
+- **Responsibilities** — Owner / Approver / Operator / Auditor / Manager per process (`process_assignments`), the assignment source a future workflow engine reuses.
+- **Activity timeline** — a process-scoped feed (`GET /processes/:id/timeline`) fed by KPI/risk/object events.
+- **Relationship engine** — a generic, polymorphic `business_relationships` table linking **any entity to any entity** (document ↔ risk ↔ audit ↔ finding; supplier → order → inspection → production → customer). No duplicated data.
+- **Grouped global search** — `GET /search?q=` returns processes, documents, business objects, KPIs and risks grouped by entity, department-scoped.
+- **Process-aware RBAC** — business objects / KPIs / risks are department-scoped at the data layer (pilots see only their department); administrators are global.
+
+### Operational API (versioned `/api/v1`)
+
+| Resource           | Endpoints                                                                                          |
+| ------------------ | -------------------------------------------------------------------------------------------------- |
+| Business objects   | `GET/POST /business-objects`, `GET/PATCH/DELETE /business-objects/:id`                             |
+| Object types       | `GET /business-object-types`, `GET /business-object-types/active`, `PATCH/DELETE /business-object-types/:id` |
+| KPIs               | `GET/POST /kpis`, `GET/PATCH/DELETE /kpis/:id`, `PATCH /kpis/:id/value`                            |
+| Process risks      | `GET/POST /process-risks`, `GET/PATCH/DELETE /process-risks/:id`                                   |
+| Relationships      | `GET/POST /relationships`, `DELETE /relationships/:id`                                             |
+| Process workspace  | `GET /processes/:id/workspace`, `GET /processes/:id/timeline`, `GET/POST /processes/:id/assignments`, `DELETE /processes/:id/assignments/:assignmentId` |
+| Global search      | `GET /search?q=`                                                                                   |
+
+Frontend: `/processes/:id` (the workspace home page), `/business-objects` (+ detail), `/kpis`, `/risks`,
+and a grouped `/search`.
+
+---
+
+## Audit Management (Phase 5)
+
+Digital audit execution replaces paper/Excel checklists:
+
+- **Audit templates** — reusable, versioned, with a Section → Question hierarchy and 9 question types
+  (Yes/No, Yes/No/N.A., short/long text, number, date, dropdown, checkbox, multiple choice). Per-question
+  settings: required, weight, evidence-required, finding-required. Draft → Publish → Archive lifecycle + clone.
+  (`audit-templates` module; import-ready for future Word/Excel/PDF checklist import — parser registry already exists.)
+- **Audit execution** — create from a published template, answer questions (autosaved), live progress %,
+  compliance scoring (`ok / (ok+fail)`), submit → review → approve / return → complete workflow.
+  Department-scoped: pilots execute only their department's audits.
+- **Findings** — Observation / Opportunity-for-improvement / Minor NC / Major NC, linked to a question,
+  owner, due date, status; linkable to documents/risks via the relationship engine. **A finding never
+  auto-creates a CAPA** — the Audit Manager decides (Phase 6 hook prepared).
+- **Evidence** — optional photos/PDFs/files attached to a question, finding or the audit; stored in MinIO.
+- **Reports** — branded **PDF** (pdfkit) and **Excel** (exceljs) exports with checklist, answers, findings
+  and approval info; designed to carry digital signatures later (`reports.export` permission).
+- **Integration** — completed audits appear in the Process Workspace; audit widgets on the Dashboard
+  (scheduled / in-progress / completed / overdue, open findings, findings-by-severity, compliance &
+  completion rates); templates/audits/findings in global search; every action recorded on the Activity Timeline.
+
+### Audit API (versioned `/api/v1`)
+
+| Resource        | Endpoints                                                                                                                        |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Templates       | `GET/POST /audit-templates`, `GET/PATCH/DELETE /audit-templates/:id`, `POST /audit-templates/:id/{publish,archive,clone}`      |
+| Audits          | `GET/POST /audits`, `GET/DELETE /audits/:id`, `POST /audits/:id/{start,submit,approve,return,complete}`, `PATCH /audits/:id/answer` |
+| Findings        | `GET/POST /audits/:id/findings`, `PATCH/DELETE /audits/:id/findings/:findingId`                                                  |
+| Evidence        | `GET/POST /audits/:id/evidence`, `GET /audits/:id/evidence/:evidenceId/download`                                                 |
+| Reports         | `GET /audits/:id/report.pdf`, `GET /audits/:id/report.xlsx`                                                                      |
+
+Frontend: `/audit-templates` (+ detail), `/audits` (+ execution page with findings, evidence, review
+actions and report download).
 
 ---
 

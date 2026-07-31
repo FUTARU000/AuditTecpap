@@ -1,8 +1,12 @@
 'use client';
 
-import { Bell, LogOut, Menu, Search } from 'lucide-react';
+import { Bell, LogOut, Menu, Moon, Search, Sun } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useState, type FormEvent } from 'react';
 import { Button, Input } from '@tecpap/ui';
 import { useAuth } from '@/lib/auth-context';
+import { useTranslation } from '@/lib/i18n';
+import { useTheme } from '@/components/theme-provider';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,7 +23,19 @@ interface TopbarProps {
 
 export function Topbar({ onMenuClick, title }: TopbarProps) {
   const { user, logout } = useAuth();
+  const { theme, toggle } = useTheme();
+  const { t, locale, setLocale } = useTranslation();
+  const router = useRouter();
+  const [query, setQuery] = useState('');
   const initials = user ? `${user.firstName.charAt(0)}${user.lastName.charAt(0)}`.toUpperCase() : '?';
+
+  function search(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const term = query.trim();
+    if (term) {
+      router.push(`/search?q=${encodeURIComponent(term)}`);
+    }
+  }
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur lg:px-6">
@@ -30,10 +46,23 @@ export function Topbar({ onMenuClick, title }: TopbarProps) {
       <h1 className="truncate text-base font-semibold text-foreground lg:text-lg">{title}</h1>
 
       <div className="ml-auto flex items-center gap-2">
-        <div className="relative hidden md:block">
+        <form onSubmit={search} className="relative hidden md:block">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Search…" className="h-9 w-56 pl-8" aria-label="Search" />
-        </div>
+          <Input
+            placeholder={`${t('common.search', 'Search')}…`}
+            className="h-9 w-56 pl-8"
+            aria-label="Search documents"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </form>
+
+        <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
+          {theme === 'dark' ? <Sun className="size-5" /> : <Moon className="size-5" />}
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => setLocale(locale === 'fr' ? 'en' : 'fr')} className="px-2 text-xs font-semibold uppercase" aria-label="Switch language">
+          {locale === 'fr' ? 'EN' : 'FR'}
+        </Button>
         <Button variant="ghost" size="icon" aria-label="Notifications">
           <Bell className="size-5" />
         </Button>
@@ -61,7 +90,7 @@ export function Topbar({ onMenuClick, title }: TopbarProps) {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => void logout()}>
-              <LogOut className="size-4" /> Sign out
+              <LogOut className="size-4" /> {t('common.sign_out', 'Sign out')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

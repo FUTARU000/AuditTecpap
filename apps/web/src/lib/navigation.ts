@@ -1,16 +1,20 @@
 import {
-  Award,
+  AlertTriangle,
   Building2,
   ClipboardCheck,
-  FileBarChart,
+  ClipboardList,
   FileStack,
-  FlagTriangleRight,
+  FileText,
+  FolderTree,
+  Gauge,
   LayoutDashboard,
-  ListChecks,
   Lock,
+  Package,
   Settings,
   ShieldCheck,
   Users,
+  Workflow,
+  Wrench,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -18,9 +22,7 @@ export interface NavItem {
   label: string;
   href?: string;
   icon: LucideIcon;
-  /** Disabled items are placeholders for upcoming phases. */
   disabled?: boolean;
-  /** Required permission key to see this item (hidden if the user lacks it). */
   permission?: string;
 }
 
@@ -35,29 +37,37 @@ export const navSections: NavSection[] = [
     items: [{ label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, permission: 'dashboard.read' }],
   },
   {
+    title: 'Quality management',
+    items: [
+      { label: 'Documents', href: '/documents', icon: FolderTree, permission: 'documents.read' },
+      { label: 'Processes', href: '/processes', icon: Workflow, permission: 'processes.read' },
+    ],
+  },
+  {
+    title: 'Audit programme',
+    items: [
+      { label: 'Templates', href: '/audit-templates', icon: ClipboardList, permission: 'templates.read' },
+      { label: 'Audits', href: '/audits', icon: ClipboardCheck, permission: 'audits.read' },
+      { label: 'CAPA', href: '/capas', icon: Wrench, permission: 'capas.read' },
+    ],
+  },
+  {
+    title: 'Operational',
+    items: [
+      { label: 'Business objects', href: '/business-objects', icon: Package, permission: 'business_objects.read' },
+      { label: 'KPIs', href: '/kpis', icon: Gauge, permission: 'kpis.read' },
+      { label: 'Risks', href: '/risks', icon: AlertTriangle, permission: 'risks.read' },
+    ],
+  },
+  {
     title: 'Administration',
     items: [
       { label: 'Users', href: '/admin/users', icon: Users, permission: 'users.read' },
       { label: 'Roles', href: '/admin/roles', icon: ShieldCheck, permission: 'roles.read' },
       { label: 'Permissions', href: '/admin/permissions', icon: Lock, permission: 'permissions.read' },
       { label: 'Departments', href: '/admin/departments', icon: Building2, permission: 'departments.read' },
-      { label: 'Audit log', href: '/admin/audit-log', icon: FileBarChart, permission: 'audit-log.read' },
-    ],
-  },
-  {
-    title: 'Audit programme',
-    items: [
-      { label: 'Audits', icon: ClipboardCheck, disabled: true },
-      { label: 'Templates', icon: FileStack, disabled: true },
-      { label: 'Findings', icon: FlagTriangleRight, disabled: true },
-      { label: 'Corrective actions', icon: ListChecks, disabled: true },
-    ],
-  },
-  {
-    title: 'Document control',
-    items: [
-      { label: 'Documents', icon: FileBarChart, disabled: true },
-      { label: 'Certificates', icon: Award, disabled: true },
+      { label: 'Categories', href: '/admin/categories', icon: FileText, permission: 'categories.read' },
+      { label: 'Audit log', href: '/admin/audit-log', icon: FileStack, permission: 'audit-log.read' },
     ],
   },
   {

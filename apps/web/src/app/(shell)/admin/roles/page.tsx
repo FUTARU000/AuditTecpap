@@ -20,6 +20,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { EmptyState, ErrorState, PageHeader } from '@/components/admin/common';
+import { useTranslation } from '@/lib/i18n';
 
 interface RoleForm {
   name: string;
@@ -30,6 +31,7 @@ interface RoleForm {
 
 export default function RolesPage() {
   const [roles, setRoles] = useState<RoleDto[]>([]);
+  const { t } = useTranslation();
   const [catalog, setCatalog] = useState<PermissionCatalogResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -111,8 +113,8 @@ export default function RolesPage() {
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
       <PageHeader
-        title="Roles"
-        description="Group permissions into roles. System roles are protected from deletion."
+        title={t('page.roles', 'Roles')}
+        description={t('page.roles_desc')}
         action={
           <Button onClick={openCreate}>
             <PlusCircle className="size-4" /> New role

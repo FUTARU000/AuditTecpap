@@ -7,9 +7,11 @@ import { Badge, Input } from '@tecpap/ui';
 import { api } from '@/lib/api';
 import { useAsync } from '@/lib/use-async';
 import { ErrorState, PageHeader } from '@/components/admin/common';
+import { useTranslation } from '@/lib/i18n';
 
 export default function PermissionsPage() {
   const { data: catalog, error, loading, reload } = useAsync<PermissionCatalogResponse>(() => api.get('/permissions'));
+  const { t } = useTranslation();
   const [search, setSearch] = useState('');
 
   const filtered = useMemo(() => {
@@ -31,7 +33,7 @@ export default function PermissionsPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-      <PageHeader title="Permissions" description="The DB-driven permission catalog, grouped by module." />
+      <PageHeader title={t('page.permissions', 'Permissions')} description={t('page.permissions_desc')} />
 
       <Input
         placeholder="Search permissions…"

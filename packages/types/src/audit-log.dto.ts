@@ -34,6 +34,23 @@ export const AUDIT_ACTIONS = {
   DEPARTMENT_UPDATE: 'department.update',
   DEPARTMENT_DELETE: 'department.delete',
   DEPARTMENT_MANAGER_CHANGE: 'department.manager_change',
+  // Quality management
+  PROCESS_CREATE: 'process.create',
+  PROCESS_UPDATE: 'process.update',
+  PROCESS_DELETE: 'process.archive',
+  CATEGORY_CREATE: 'category.create',
+  CATEGORY_UPDATE: 'category.update',
+  CATEGORY_DELETE: 'category.delete',
+  DOCUMENT_CREATE: 'document.create',
+  DOCUMENT_UPDATE: 'document.update',
+  DOCUMENT_DELETE: 'document.delete',
+  DOCUMENT_VERSION_UPLOAD: 'document.version_upload',
+  DOCUMENT_VERSION_APPROVE: 'document.version_approve',
+  DOCUMENT_STATUS_CHANGE: 'document.status_change',
+  DOCUMENT_ARCHIVE: 'document.archive',
+  DOCUMENT_RESTORE: 'document.restore',
+  DOCUMENT_RELATION_ADD: 'document.relation_add',
+  DOCUMENT_RELATION_REMOVE: 'document.relation_remove',
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];

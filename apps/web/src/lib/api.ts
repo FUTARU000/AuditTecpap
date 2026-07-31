@@ -89,6 +89,32 @@ export const api = {
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 };
 
+/** Upload multipart form data (e.g. a document file). */
+export async function uploadFile<T>(path: string, formData: FormData): Promise<T> {
+  const url = new URL(`${API_PREFIX}${path}`, BASE_URL);
+  const headers: Record<string, string> = {};
+  const access = getAccessToken();
+  if (access) {
+    headers.Authorization = `Bearer ${access}`;
+  }
+  const response = await fetch(url.toString(), { method: 'POST', headers, body: formData });
+
+  if (response.status === 401 && isBrowser) {
+    clearTokens();
+    if (!window.location.pathname.startsWith('/login')) {
+      window.location.href = '/login';
+    }
+  }
+
+  const text = await response.text();
+  const data = text ? (JSON.parse(text) as unknown) : null;
+  if (!response.ok) {
+    const error = (data as ApiError | null)?.error;
+    throw new RequestError(error?.message ?? 'Upload failed', response.status, error);
+  }
+  return data as T;
+}
+
 /** Build a query string from a record (used by table filters). */
 export function toQuery(params: Record<string, string | number | undefined | null>): Record<string, string> {
   const result: Record<string, string> = {};

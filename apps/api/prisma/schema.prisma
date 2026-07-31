@@ -1,6 +1,7 @@
 // TECPAP Audit Platform — Prisma schema
-// Phase 2: Identity & Administration (users, roles, permissions, departments, audit log).
-// Audit/document/reporting entities arrive in later phases. See SAD §8.
+// Phase 3: Quality Management Foundation (processes, categories, controlled
+// documents, immutable versions, typed relationships, full-text search).
+// See SAD §8 for the full target model.
 
 generator client {
   provider      = "prisma-client-js"
@@ -22,6 +23,71 @@ enum UserStatus {
 enum DepartmentStatus {
   ACTIVE
   INACTIVE
+}
+
+enum ProcessStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum DocumentStatus {
+  DRAFT
+  UNDER_REVIEW
+  APPROVED
+  PUBLISHED
+  OBSOLETE
+  ARCHIVED
+}
+
+enum RelationType {
+  USES
+  GENERATES
+  REFERENCES
+  REPLACES
+  ATTACHMENT
+}
+
+enum ConfidentialityLevel {
+  PUBLIC
+  INTERNAL
+  CONFIDENTIAL
+  RESTRICTED
+}
+
+enum TemplateStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum AuditStatus {
+  PLANNED
+  IN_PROGRESS
+  SUBMITTED
+  UNDER_REVIEW
+  RETURNED
+  APPROVED
+  COMPLETED
+}
+
+enum QuestionType {
+  YES_NO
+  YES_NO_NA
+  SHORT_TEXT
+  LONG_TEXT
+  NUMBER
+  DATE
+  DROPDOWN
+  CHECKBOX
+  MULTIPLE_CHOICE
+}
+
+enum FindingSeverity {
+  OBSERVATION
+  OFI
+  MINOR_NC
+  MAJOR_NC
 }
 
 model User {
@@ -49,6 +115,40 @@ model User {
   managedDepartments     Department[]    @relation("DepartmentManager")
   refreshTokens          RefreshToken[]
   auditLogs              AuditLog[]      @relation("AuditLogActor")
+
+  // Quality-management back-relations
+  ownedProcesses         Process[]       @relation("ProcessOwner")
+  ownedDocuments         ControlledDocument[] @relation("DocumentOwner")
+  reviewedDocuments      ControlledDocument[] @relation("DocumentReviewer")
+  approvedDocuments      ControlledDocument[] @relation("DocumentApprover")
+  createdDocuments       ControlledDocument[] @relation("DocumentCreator")
+  updatedDocuments       ControlledDocument[] @relation("DocumentUpdater")
+  uploadedVersions       DocumentVersion[]    @relation("VersionUploader")
+  approvedVersions       DocumentVersion[]    @relation("VersionApprover")
+
+  // Phase 4 — process & operational entities
+  businessObjectsOwned   BusinessObject[]     @relation("BusinessObjectOwner")
+  businessObjectsCreated BusinessObject[]     @relation("BusinessObjectCreator")
+  kpisResponsible        Kpi[]                @relation("KpiResponsible")
+  risksOwned             ProcessRisk[]        @relation("RiskOwner")
+  processAssignments     ProcessAssignment[]  @relation("ProcessAssignments")
+  timelineEvents         ActivityTimeline[]   @relation("TimelineActor")
+
+  // Phase 5 — audit programme
+  templatesCreated       AuditTemplate[]      @relation("TemplateCreator")
+  templatesUpdated       AuditTemplate[]      @relation("TemplateUpdater")
+  auditsAsAuditor        Audit[]              @relation("AuditAuditor")
+  auditsAsApprover       Audit[]              @relation("AuditApprover")
+  auditsCreated          Audit[]              @relation("AuditCreator")
+  findingsResponsible    Finding[]            @relation("FindingResponsible")
+  evidenceUploaded       AuditEvidence[]      @relation("EvidenceUploader")
+  capasOwned             Capa[]               @relation("CapaOwner")
+  capasCreated           Capa[]               @relation("CapaCreator")
+  capasClosed            Capa[]               @relation("CapaCloser")
+  capaActionsOwned       CapaAction[]         @relation("CapaActionOwner")
+  capaEvidenceUploaded   CapaActionEvidence[] @relation("CapaEvidenceUploader")
+  capaVerifications      CapaVerification[]   @relation("CapaVerifier")
+  capaEffectivenessReviews CapaEffectivenessReview[] @relation("CapaEffectivenessReviewer")
 
   // Soft delete only — never permanently removed.
   deletedAt              DateTime?
@@ -107,6 +207,13 @@ model Department {
   manager     User?            @relation("DepartmentManager", fields: [managerId], references: [id], onDelete: SetNull)
 
   users       User[]           @relation("DepartmentMembers")
+  processes   Process[]        @relation("DepartmentProcesses")
+  documents   ControlledDocument[] @relation("DepartmentDocuments")
+  businessObjects BusinessObject[] @relation("DepartmentBusinessObjects")
+  kpis        Kpi[]            @relation("DepartmentKpis")
+  auditTemplates AuditTemplate[]
+  audits      Audit[]
+  capas          Capa[]            @relation("DepartmentCapas")
 
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
@@ -153,4 +260,720 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+// =====================================================================
+// Quality Management System
+// =====================================================================
+
+model Process {
+  id            String        @id @default(uuid())
+  code          String
+  name          String
+  description   String?
+  departmentId  String
+  department    Department    @relation("DepartmentProcesses", fields: [departmentId], references: [id])
+  ownerId       String?
+  owner         User?         @relation("ProcessOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  objectives    String?
+  scope         String?
+  risks         Json?
+  opportunities Json?
+  kpis          Json?
+  status        ProcessStatus @default(ACTIVE)
+  revision      Int           @default(1)
+  documents     ControlledDocument[]
+  businessObjects BusinessObject[]
+  kpiRecords    Kpi[]
+  processRisks  ProcessRisk[]
+  assignments   ProcessAssignment[]
+  timeline      ActivityTimeline[]
+  auditTemplates AuditTemplate[]
+  audits        Audit[]
+  findings      Finding[]        @relation("ProcessFindings")
+  capas          Capa[]
+  deletedAt     DateTime?
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@unique([departmentId, code])
+  @@index([departmentId])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("processes")
+}
+
+model DocumentCategory {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  icon        String?
+  color       String?
+  description String?
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  documents   ControlledDocument[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("document_categories")
+}
+
+model ControlledDocument {
+  id              String              @id @default(uuid())
+  title           String
+  code            String              @unique
+  description     String?
+  departmentId    String
+  department      Department          @relation("DepartmentDocuments", fields: [departmentId], references: [id])
+  processId       String?
+  process         Process?            @relation(fields: [processId], references: [id], onDelete: SetNull)
+  categoryId      String
+  category        DocumentCategory    @relation(fields: [categoryId], references: [id])
+  currentVersionId String?
+  currentVersion  DocumentVersion?    @relation("DocumentCurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  version         String              @default("0.1")
+  revision        Int                 @default(0)
+  status          DocumentStatus      @default(DRAFT)
+  ownerId         String?
+  owner           User?               @relation("DocumentOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  reviewerId      String?
+  reviewer        User?               @relation("DocumentReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  approverId      String?
+  approver        User?               @relation("DocumentApprover", fields: [approverId], references: [id], onDelete: SetNull)
+  keywords        String[]
+  confidentiality ConfidentialityLevel @default(INTERNAL)
+  effectiveDate   DateTime?
+  reviewDate      DateTime?
+  expirationDate  DateTime?
+  createdById     String
+  createdBy       User                @relation("DocumentCreator", fields: [createdById], references: [id])
+  updatedById     String?
+  updatedBy       User?               @relation("DocumentUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  versions        DocumentVersion[]
+  relationsAsSource DocumentRelation[] @relation("RelationSource")
+  relationsAsTarget DocumentRelation[] @relation("RelationTarget")
+
+  /// PostgreSQL full-text search vector — generated + indexed via a raw migration.
+  searchVector   Unsupported("tsvector")?
+
+  deletedAt      DateTime?
+
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@index([departmentId])
+  @@index([processId])
+  @@index([categoryId])
+  @@index([status])
+  @@index([ownerId])
+  @@index([deletedAt])
+  @@index([expirationDate])
+  @@map("controlled_documents")
+}
+
+/// Immutable document version. Once written it is never updated or deleted by
+/// the application — only a new version can supersede it.
+model DocumentVersion {
+  id           String   @id @default(uuid())
+  documentId   String
+  document     ControlledDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  version      String
+  revision     Int
+  fileKey      String
+  fileName     String
+  mimeType     String
+  sizeBytes    Int
+  checksum     String?
+  comment      String?
+  uploadedById String
+  uploadedBy   User     @relation("VersionUploader", fields: [uploadedById], references: [id])
+  approvedById String?
+  approvedBy   User?    @relation("VersionApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt   DateTime?
+  currentFor   ControlledDocument[] @relation("DocumentCurrentVersion")
+
+  createdAt    DateTime @default(now())
+
+  @@index([documentId])
+  @@index([uploadedById])
+  @@map("document_versions")
+}
+
+/// Typed many-to-many relationship between controlled documents.
+model DocumentRelation {
+  id               String       @id @default(uuid())
+  sourceDocumentId String
+  sourceDocument   ControlledDocument @relation("RelationSource", fields: [sourceDocumentId], references: [id], onDelete: Cascade)
+  targetDocumentId String
+  targetDocument   ControlledDocument @relation("RelationTarget", fields: [targetDocumentId], references: [id], onDelete: Cascade)
+  type             RelationType
+  createdAt        DateTime     @default(now())
+
+  @@unique([sourceDocumentId, targetDocumentId, type])
+  @@index([sourceDocumentId])
+  @@index([targetDocumentId])
+  @@map("document_relations")
+}
+
+// =====================================================================
+// Phase 4 — Business Process & Operational Management
+// =====================================================================
+
+/// Configurable catalog of business-object kinds (Production Orders, Suppliers,
+/// Machines, Employees, …). Administrators add more; never hardcoded.
+model BusinessObjectType {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  icon        String?
+  color       String?
+  description String?
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  objects     BusinessObject[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("business_object_types")
+}
+
+/// A concrete operational entity owned by a process (e.g. a specific machine,
+/// supplier, or production order). `attributes` holds type-specific fields.
+model BusinessObject {
+  id           String   @id @default(uuid())
+  typeId       String
+  type         BusinessObjectType @relation(fields: [typeId], references: [id])
+  departmentId String
+  department   Department @relation("DepartmentBusinessObjects", fields: [departmentId], references: [id])
+  processId    String?
+  process      Process? @relation(fields: [processId], references: [id], onDelete: SetNull)
+  name         String
+  code         String
+  status       String   @default("ACTIVE")
+  attributes   Json?
+  ownerId      String?
+  owner        User?    @relation("BusinessObjectOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  createdById  String
+  createdBy    User     @relation("BusinessObjectCreator", fields: [createdById], references: [id])
+  deletedAt    DateTime?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([departmentId, code])
+  @@index([typeId])
+  @@index([processId])
+  @@index([departmentId])
+  @@index([status])
+  @@map("business_objects")
+}
+
+/// Configurable KPI. Current value/trend are set manually today; future data
+/// sources (ERP, IoT) can populate them via the same record — no redesign.
+model Kpi {
+  id                String   @id @default(uuid())
+  name              String
+  description       String?
+  formula           String?
+  unit              String?
+  target            Float?
+  warningThreshold  Float?
+  criticalThreshold Float?
+  currentValue      Float?
+  trend             String? // UP | DOWN | STABLE
+  frequency         String   @default("MONTHLY")
+  status            String   @default("ACTIVE")
+  responsibleUserId String?
+  responsible       User?    @relation("KpiResponsible", fields: [responsibleUserId], references: [id], onDelete: SetNull)
+  departmentId      String?
+  department        Department? @relation("DepartmentKpis", fields: [departmentId], references: [id], onDelete: SetNull)
+  processId         String?
+  process           Process? @relation(fields: [processId], references: [id], onDelete: SetNull)
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([processId])
+  @@index([departmentId])
+  @@index([status])
+  @@map("kpis")
+}
+
+/// A risk owned by a process. riskScore = probability × impact (1–5 each).
+model ProcessRisk {
+  id           String   @id @default(uuid())
+  processId    String
+  process      Process  @relation(fields: [processId], references: [id], onDelete: Cascade)
+  title        String
+  description  String?
+  probability  Int      @default(3)
+  impact       Int      @default(3)
+  riskScore    Int      @default(9)
+  ownerId      String?
+  owner        User?    @relation("RiskOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  mitigation   String?
+  reviewDate   DateTime?
+  status       String   @default("OPEN")
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([processId])
+  @@index([status])
+  @@map("process_risks")
+}
+
+/// Process responsibilities — Owner / Approver / Operator / Auditor / Manager.
+/// A future workflow engine resolves assignees from these.
+model ProcessAssignment {
+  id        String   @id @default(uuid())
+  processId String
+  process   Process  @relation(fields: [processId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation("ProcessAssignments", fields: [userId], references: [id], onDelete: Cascade)
+  role      String   // OWNER | APPROVER | OPERATOR | AUDITOR | MANAGER
+
+  createdAt DateTime @default(now())
+
+  @@unique([processId, userId, role])
+  @@index([processId])
+  @@index([userId])
+  @@map("process_assignments")
+}
+
+/// Process-scoped activity feed (document updates, risk/KPI changes, …).
+model ActivityTimeline {
+  id         String   @id @default(uuid())
+  processId  String?
+  process    Process? @relation(fields: [processId], references: [id], onDelete: SetNull)
+  eventType  String
+  title      String
+  entityType String
+  entityId   String?
+  actorId    String?
+  actor      User?    @relation("TimelineActor", fields: [actorId], references: [id], onDelete: SetNull)
+  createdAt  DateTime @default(now())
+
+  @@index([processId, createdAt])
+  @@index([entityType, entityId])
+  @@map("activity_timeline")
+}
+
+/// Generic relationship engine — any entity to any entity (document ↔ risk ↔
+/// audit ↔ finding; supplier → order → inspection → production → customer).
+/// Polymorphic by (entityType, entityId), so it needs no per-entity FKs.
+model BusinessRelationship {
+  id         String   @id @default(uuid())
+  sourceType String
+  sourceId   String
+  targetType String
+  targetId   String
+  type       String   // USES | GENERATES | REFERENCES | REPLACES | ATTACHMENT
+  label      String?
+
+  createdAt  DateTime @default(now())
+
+  @@unique([sourceType, sourceId, targetType, targetId, type])
+  @@index([sourceType, sourceId])
+  @@index([targetType, targetId])
+  @@map("business_relationships")
+}
+
+// =====================================================================
+// Phase 5 — Audit Management & Digital Checklist Engine
+// =====================================================================
+
+model AuditTemplate {
+  id          String         @id @default(uuid())
+  name        String
+  description String?
+  category    String
+  version     Int            @default(1)
+  status      TemplateStatus @default(DRAFT)
+  departmentId String?
+  department  Department?    @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  processId   String?
+  process     Process?       @relation(fields: [processId], references: [id], onDelete: SetNull)
+  createdById String
+  createdBy   User           @relation("TemplateCreator", fields: [createdById], references: [id])
+  updatedById String?
+  updatedBy   User?          @relation("TemplateUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  sections    AuditTemplateSection[]
+  audits      Audit[]
+
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([status])
+  @@index([departmentId])
+  @@index([processId])
+  @@map("audit_templates")
+}
+
+model AuditTemplateSection {
+  id          String   @id @default(uuid())
+  templateId  String
+  template    AuditTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  title       String
+  order       Int      @default(0)
+  description String?
+
+  questions   AuditTemplateQuestion[]
+
+  @@index([templateId])
+  @@map("audit_template_sections")
+}
+
+model AuditTemplateQuestion {
+  id              String       @id @default(uuid())
+  sectionId       String
+  section         AuditTemplateSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  text            String
+  type            QuestionType
+  required        Boolean      @default(false)
+  weight          Float        @default(1)
+  order           Int          @default(0)
+  description     String?
+  helpText        String?
+  defaultAnswer   Json?
+  evidenceRequired Boolean     @default(false)
+  findingRequired Boolean      @default(false)
+  options         String[]     @default([])
+
+  answers         AuditAnswer[]
+
+  @@index([sectionId])
+  @@map("audit_template_questions")
+}
+
+model Audit {
+  id           String      @id @default(uuid())
+  title        String
+  templateId   String
+  template     AuditTemplate @relation(fields: [templateId], references: [id])
+  departmentId String
+  department   Department  @relation(fields: [departmentId], references: [id])
+  processId    String?
+  process      Process?    @relation(fields: [processId], references: [id], onDelete: SetNull)
+  auditorId    String?
+  auditor      User?       @relation("AuditAuditor", fields: [auditorId], references: [id], onDelete: SetNull)
+  status       AuditStatus @default(PLANNED)
+  scheduledDate DateTime?
+  startedAt    DateTime?
+  submittedAt  DateTime?
+  approvedAt   DateTime?
+  approvedById String?
+  approvedBy   User?       @relation("AuditApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  reviewComment String?
+  score        Float?
+  compliance   Float?
+  createdById  String
+  createdBy    User        @relation("AuditCreator", fields: [createdById], references: [id])
+
+  answers      AuditAnswer[]
+  findings     Finding[]
+  evidence     AuditEvidence[]
+
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([templateId])
+  @@index([departmentId])
+  @@index([processId])
+  @@index([status])
+  @@index([auditorId])
+  @@map("audits")
+}
+
+model AuditAnswer {
+  id         String   @id @default(uuid())
+  auditId    String
+  audit      Audit    @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  questionId String
+  question   AuditTemplateQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  value      Json?
+  status     String   @default("pending")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([auditId, questionId])
+  @@index([auditId])
+  @@map("audit_answers")
+}
+
+model Finding {
+  id               String          @id @default(uuid())
+  auditId          String
+  audit            Audit           @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  questionId       String?
+  title            String
+  description      String?
+  severity         FindingSeverity
+  responsibleUserId String?
+  responsible      User?           @relation("FindingResponsible", fields: [responsibleUserId], references: [id], onDelete: SetNull)
+  dueDate          DateTime?
+  status           String          @default("OPEN")
+  processId        String?
+  process          Process?        @relation("ProcessFindings", fields: [processId], references: [id], onDelete: SetNull)
+  comments         String?
+  capaDecision     String?
+  capaDecisionById String?
+  capaDecisionDate DateTime?
+  capaDecisionReason String?
+  capas            Capa[]           @relation("FindingCapas")
+
+  evidence         AuditEvidence[]
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([auditId])
+  @@index([severity])
+  @@index([status])
+  @@map("findings")
+}
+
+model AuditEvidence {
+  id           String   @id @default(uuid())
+  auditId      String?
+  audit        Audit?   @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  questionId   String?
+  findingId    String?
+  finding      Finding? @relation(fields: [findingId], references: [id], onDelete: SetNull)
+  fileKey      String
+  fileName     String
+  mimeType     String
+  sizeBytes    Int
+  comment      String?
+  uploadedById String
+  uploadedBy   User     @relation("EvidenceUploader", fields: [uploadedById], references: [id])
+
+  createdAt    DateTime @default(now())
+
+  @@index([auditId])
+  @@index([findingId])
+  @@map("audit_evidence")
+}
+
+// =====================================================================
+// Phase 6 — CAPA & Continuous Improvement
+// =====================================================================
+
+enum CapaStatus {
+  DRAFT
+  ROOT_CAUSE_ANALYSIS
+  ACTION_PLAN
+  IN_PROGRESS
+  PENDING_VERIFICATION
+  PENDING_EFFECTIVENESS
+  CLOSED
+  CANCELLED
+}
+
+enum CapaPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum CapaActionType {
+  CONTAINMENT
+  CORRECTIVE
+  PREVENTIVE
+}
+
+enum CapaActionStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  VERIFIED
+  CANCELLED
+}
+
+enum VerificationResult {
+  PASSED
+  FAILED
+}
+
+enum EffectivenessResult {
+  EFFECTIVE
+  PARTIALLY_EFFECTIVE
+  INEFFECTIVE
+}
+
+model Capa {
+  id                   String       @id @default(uuid())
+  referenceNumber      String       @unique
+  title                String
+  description          String?
+  sourceType           String       @default("MANUAL")
+  sourceId             String?
+  findingId            String?
+  finding              Finding?     @relation("FindingCapas", fields: [findingId], references: [id], onDelete: SetNull)
+  departmentId         String
+  department           Department   @relation("DepartmentCapas", fields: [departmentId], references: [id])
+  processId            String?
+  process              Process?     @relation(fields: [processId], references: [id], onDelete: SetNull)
+  ownerId              String?
+  owner                User?        @relation("CapaOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  createdById          String
+  createdBy            User         @relation("CapaCreator", fields: [createdById], references: [id])
+  priority             CapaPriority @default(MEDIUM)
+  status               CapaStatus   @default(DRAFT)
+  targetDate           DateTime?
+  openedAt             DateTime?
+  submittedAt          DateTime?
+  verifiedAt           DateTime?
+  effectivenessDueDate DateTime?
+  effectivenessReviewedAt DateTime?
+  closedAt             DateTime?
+  closedById           String?
+  closedBy             User?        @relation("CapaCloser", fields: [closedById], references: [id], onDelete: SetNull)
+  closureComment       String?
+
+  rootCause            CapaRootCauseAnalysis?
+  actions              CapaAction[]
+  verification         CapaVerification?
+  effectiveness        CapaEffectivenessReview?
+
+  deletedAt            DateTime?
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  @@index([departmentId])
+  @@index([status])
+  @@index([findingId])
+  @@index([ownerId])
+  @@index([processId])
+  @@map("capas")
+}
+
+model CapaRootCauseAnalysis {
+  id                  String   @id @default(uuid())
+  capaId              String   @unique
+  capa                Capa     @relation(fields: [capaId], references: [id], onDelete: Cascade)
+  problemStatement    String?
+  immediateCause      String?
+  rootCause           String?
+  contributingFactors String?
+  analysisNotes       String?
+  useFiveWhys         Boolean  @default(false)
+  useEightD           Boolean  @default(false)
+
+  whySteps            CapaWhyStep[]
+  eightD              CapaEightD?
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("capa_root_cause_analyses")
+}
+
+model CapaWhyStep {
+  id         String   @id @default(uuid())
+  analysisId String
+  analysis   CapaRootCauseAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  stepNumber Int
+  question   String
+  answer     String?
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([analysisId])
+  @@map("capa_why_steps")
+}
+
+model CapaEightD {
+  id                   String   @id @default(uuid())
+  analysisId           String   @unique
+  analysis             CapaRootCauseAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  d1Team               String?
+  d2ProblemDescription String?
+  d3InterimActions     String?
+  d4RootCause          String?
+  d5PermanentActions   String?
+  d6Implementation     String?
+  d7Prevention         String?
+  d8Closure            String?
+
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@map("capa_eight_ds")
+}
+
+model CapaAction {
+  id                String         @id @default(uuid())
+  capaId            String
+  capa              Capa           @relation(fields: [capaId], references: [id], onDelete: Cascade)
+  title             String
+  description       String?
+  actionType        CapaActionType @default(CORRECTIVE)
+  ownerId           String?
+  owner             User?          @relation("CapaActionOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  priority          CapaPriority   @default(MEDIUM)
+  status            CapaActionStatus @default(OPEN)
+  dueDate           DateTime?
+  completedAt       DateTime?
+  completionComment String?
+
+  evidence          CapaActionEvidence[]
+
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([capaId])
+  @@index([ownerId])
+  @@map("capa_actions")
+}
+
+model CapaActionEvidence {
+  id           String   @id @default(uuid())
+  actionId     String
+  action       CapaAction @relation(fields: [actionId], references: [id], onDelete: Cascade)
+  fileKey      String
+  fileName     String
+  mimeType     String
+  sizeBytes    Int
+  comment      String?
+  uploadedById String
+  uploadedBy   User     @relation("CapaEvidenceUploader", fields: [uploadedById], references: [id])
+
+  createdAt    DateTime @default(now())
+
+  @@index([actionId])
+  @@map("capa_action_evidence")
+}
+
+model CapaVerification {
+  id           String             @id @default(uuid())
+  capaId       String             @unique
+  capa         Capa               @relation(fields: [capaId], references: [id], onDelete: Cascade)
+  verifiedById String
+  verifiedBy   User               @relation("CapaVerifier", fields: [verifiedById], references: [id])
+  result       VerificationResult
+  notes        String?
+  verifiedAt   DateTime           @default(now())
+
+  @@map("capa_verifications")
+}
+
+model CapaEffectivenessReview {
+  id            String               @id @default(uuid())
+  capaId        String               @unique
+  capa          Capa                 @relation(fields: [capaId], references: [id], onDelete: Cascade)
+  reviewedById  String
+  reviewedBy    User                 @relation("CapaEffectivenessReviewer", fields: [reviewedById], references: [id])
+  result        EffectivenessResult
+  notes         String?
+  reviewedAt    DateTime             @default(now())
+
+  @@map("capa_effectiveness_reviews")
 }

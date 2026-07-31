@@ -65,8 +65,121 @@ export const PERMISSION_CATALOG: PermissionGroup[] = [
     permissions: [{ key: 'audit-log.read', label: 'View the audit log' }],
   },
   {
+    group: 'Processes',
+    permissions: [
+      { key: 'processes.read', label: 'View processes', description: 'List and open processes' },
+      { key: 'processes.create', label: 'Create processes' },
+      { key: 'processes.update', label: 'Edit processes' },
+      { key: 'processes.delete', label: 'Archive processes' },
+    ],
+  },
+  {
+    group: 'Document categories',
+    permissions: [
+      { key: 'categories.read', label: 'View document categories' },
+      { key: 'categories.manage', label: 'Manage document categories' },
+    ],
+  },
+  {
+    group: 'Controlled documents',
+    permissions: [
+      { key: 'documents.read', label: 'View documents' },
+      { key: 'documents.create', label: 'Create documents' },
+      { key: 'documents.update', label: 'Edit documents' },
+      { key: 'documents.delete', label: 'Delete documents' },
+      { key: 'documents.upload_version', label: 'Upload new versions', description: 'Attach a file as a new immutable version' },
+      { key: 'documents.approve_version', label: 'Approve versions', description: 'Mark a version approved' },
+      { key: 'documents.manage_relations', label: 'Manage relationships', description: 'Link documents (uses/generates/references/…)' },
+      { key: 'documents.approve', label: 'Approve documents', description: 'Move a document to Approved' },
+      { key: 'documents.publish', label: 'Publish documents', description: 'Move a document to Published' },
+      { key: 'documents.archive', label: 'Archive documents' },
+      { key: 'documents.restore', label: 'Restore documents' },
+    ],
+  },
+  {
     group: 'Dashboard',
     permissions: [{ key: 'dashboard.read', label: 'View dashboards' }],
+  },
+  {
+    group: 'Audit templates',
+    permissions: [
+      { key: 'templates.read', label: 'View audit templates' },
+      { key: 'templates.create', label: 'Create templates' },
+      { key: 'templates.update', label: 'Edit templates' },
+      { key: 'templates.delete', label: 'Delete templates' },
+      { key: 'templates.publish', label: 'Publish / archive templates' },
+      { key: 'templates.clone', label: 'Clone templates' },
+    ],
+  },
+  {
+    group: 'Audits',
+    permissions: [
+      { key: 'audits.read', label: 'View audits' },
+      { key: 'audits.create', label: 'Create audits' },
+      { key: 'audits.execute', label: 'Execute audits (answer questions)' },
+      { key: 'audits.submit', label: 'Submit audits' },
+      { key: 'audits.review', label: 'Review audits' },
+      { key: 'audits.approve', label: 'Approve / return audits' },
+    ],
+  },
+  {
+    group: 'Findings & evidence',
+    permissions: [
+      { key: 'findings.read', label: 'View findings' },
+      { key: 'findings.create', label: 'Create findings' },
+      { key: 'findings.update', label: 'Edit findings' },
+      { key: 'evidence.upload', label: 'Upload evidence' },
+      { key: 'reports.export', label: 'Export audit reports' },
+    ],
+  },
+  {
+    group: 'CAPA',
+    permissions: [
+      { key: 'capas.read', label: 'View CAPAs' },
+      { key: 'capas.create', label: 'Create CAPAs' },
+      { key: 'capas.update', label: 'Edit CAPAs' },
+      { key: 'capas.assign', label: 'Assign CAPA owners / actions' },
+      { key: 'capas.verify', label: 'Verify CAPA completion' },
+      { key: 'capas.effectiveness_review', label: 'Perform effectiveness review' },
+      { key: 'capas.close', label: 'Close CAPAs' },
+      { key: 'capas.export', label: 'Export CAPA reports' },
+    ],
+  },
+  {
+    group: 'CAPA actions',
+    permissions: [
+      { key: 'capa_actions.read', label: 'View CAPA actions' },
+      { key: 'capa_actions.create', label: 'Create CAPA actions' },
+      { key: 'capa_actions.update', label: 'Edit CAPA actions' },
+      { key: 'capa_actions.complete', label: 'Complete assigned actions' },
+    ],
+  },
+  {
+    group: 'Business objects',
+    permissions: [
+      { key: 'business_objects.read', label: 'View business objects' },
+      { key: 'business_objects.create', label: 'Create business objects' },
+      { key: 'business_objects.update', label: 'Edit business objects' },
+      { key: 'business_objects.delete', label: 'Delete business objects' },
+    ],
+  },
+  {
+    group: 'KPIs',
+    permissions: [
+      { key: 'kpis.read', label: 'View KPIs' },
+      { key: 'kpis.create', label: 'Create KPIs' },
+      { key: 'kpis.update', label: 'Edit KPIs (incl. recording values)' },
+      { key: 'kpis.delete', label: 'Delete KPIs' },
+    ],
+  },
+  {
+    group: 'Process risks',
+    permissions: [
+      { key: 'risks.read', label: 'View process risks' },
+      { key: 'risks.create', label: 'Create risks' },
+      { key: 'risks.update', label: 'Edit risks' },
+      { key: 'risks.delete', label: 'Delete risks' },
+    ],
   },
   {
     group: 'Settings',
