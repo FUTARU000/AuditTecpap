@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { parseEnv } from '@tecpap/config';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -24,6 +25,7 @@ import { HealthModule } from './modules/health/health.module';
 import { ImportModule } from './modules/import/import.module';
 import { KpisModule } from './modules/kpis/kpis.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
+import { ProductivityModule } from './modules/productivity/productivity.module';
 import { PrismaModule } from './modules/prisma/prisma.module';
 import { ProcessesModule } from './modules/processes/processes.module';
 import { ProcessRisksModule } from './modules/process-risks/process-risks.module';
@@ -75,6 +77,8 @@ import { UsersModule } from './modules/users/users.module';
     AuditTemplatesModule,
     AuditsModule,
     CapaModule,
+    ProductivityModule,
+    ScheduleModule.forRoot(),
   ],
   // Execution order = registration order: rate-limit → authenticate → authorize → scope.
   providers: [

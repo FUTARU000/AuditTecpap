@@ -154,6 +154,13 @@ model User {
   importJobsStarted      ImportJob[]          @relation("ImportJobStarter")
   importItemsReviewed    ImportItem[]         @relation("ImportItemReviewer")
 
+  // Phase 7.5 — Workflow, notifications & productivity
+  notifications          Notification[]       @relation("UserNotifications")
+  favorites              UserFavorite[]       @relation("UserFavorites")
+  recentItems            RecentItem[]         @relation("UserRecentItems")
+  subscriptions          ReportSubscription[] @relation("UserSubscriptions")
+  tasks                  UserTask[]           @relation("UserTasks")
+
   // Soft delete only — never permanently removed.
   deletedAt              DateTime?
 
@@ -1126,4 +1133,108 @@ model ImportItem {
   @@index([checksum])
   @@index([importedEntityId])
   @@map("import_items")
+}
+
+// =====================================================================
+// Phase 7.5 — Workflow, Notifications & Productivity
+// =====================================================================
+
+enum NotificationSeverity {
+  INFO
+  SUCCESS
+  WARNING
+  CRITICAL
+}
+
+model Notification {
+  id          String               @id @default(uuid())
+  userId      String
+  user        User                 @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  type        String               // AUDIT_ASSIGNED | CAPA_OVERDUE | DOCUMENT_AWAITING_APPROVAL | ...
+  category    String               // audit | capa | document | risk | kpi | import | system
+  severity    NotificationSeverity @default(INFO)
+  title       String
+  message     String
+  entityType  String?
+  entityId    String?
+  actionUrl   String?
+  departmentId String?
+  readAt      DateTime?
+  archivedAt  DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime             @default(now())
+
+  @@index([userId, readAt])
+  @@index([userId, archivedAt])
+  @@index([type, entityId, userId])
+  @@map("notifications")
+}
+
+model UserFavorite {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation("UserFavorites", fields: [userId], references: [id], onDelete: Cascade)
+  entityType String
+  entityId   String
+  label      String
+  href       String
+  icon       String?
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, entityType, entityId])
+  @@map("user_favorites")
+}
+
+model RecentItem {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation("UserRecentItems", fields: [userId], references: [id], onDelete: Cascade)
+  entityType String
+  entityId   String
+  label      String
+  href       String
+  viewedAt   DateTime @default(now())
+
+  @@unique([userId, entityType, entityId])
+  @@index([userId, viewedAt])
+  @@map("recent_items")
+}
+
+model ReportSubscription {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation("UserSubscriptions", fields: [userId], references: [id], onDelete: Cascade)
+  reportType String   // weekly_kpi | monthly_capa | audit_completion | department_dashboard
+  frequency  String   // DAILY | WEEKLY | MONTHLY
+  channel    String   @default("email")
+  params     Json?
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, reportType])
+  @@map("report_subscriptions")
+}
+
+/// Personal task center — auto-generated from assignments/approvals, with
+/// completion/dismissal overrides. Snapshotted so it can be marked complete.
+model UserTask {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation("UserTasks", fields: [userId], references: [id], onDelete: Cascade)
+  source      String    // audit | capa | document | import | finding | risk
+  entityType  String
+  entityId    String
+  title       String
+  priority    String    @default("MEDIUM")
+  dueDate     DateTime?
+  href        String?
+  completedAt DateTime?
+  dismissedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([userId, entityType, entityId])
+  @@index([userId, completedAt])
+  @@map("user_tasks")
 }

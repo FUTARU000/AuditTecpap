@@ -1,9 +1,10 @@
 'use client';
 
-import { Bell, LogOut, Menu, Moon, Search, Sun } from 'lucide-react';
+import { LogOut, Menu, Moon, Search, Sun } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { Button, Input } from '@tecpap/ui';
+import { NotificationBell } from '@/components/productivity/notification-bell';
 import { useAuth } from '@/lib/auth-context';
 import { useTranslation } from '@/lib/i18n';
 import { useTheme } from '@/components/theme-provider';
@@ -63,9 +64,7 @@ export function Topbar({ onMenuClick, title }: TopbarProps) {
         <Button variant="ghost" size="sm" onClick={() => setLocale(locale === 'fr' ? 'en' : 'fr')} className="px-2 text-xs font-semibold uppercase" aria-label="Switch language">
           {locale === 'fr' ? 'EN' : 'FR'}
         </Button>
-        <Button variant="ghost" size="icon" aria-label="Notifications">
-          <Bell className="size-5" />
-        </Button>
+        <NotificationBell />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

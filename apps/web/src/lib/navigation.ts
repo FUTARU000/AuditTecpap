@@ -1,6 +1,7 @@
 import {
   AlertTriangle,
   Building2,
+  Calendar,
   ClipboardCheck,
   ClipboardList,
   FileStack,
@@ -9,10 +10,13 @@ import {
   FolderTree,
   Gauge,
   LayoutDashboard,
+  LayoutGrid,
+  ListTodo,
   Lock,
   Package,
   Settings,
   ShieldCheck,
+  Star,
   Users,
   Workflow,
   Wrench,
@@ -36,6 +40,15 @@ export const navSections: NavSection[] = [
   {
     title: 'Overview',
     items: [{ label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, permission: 'dashboard.read' }],
+  },
+  {
+    title: 'Productivity',
+    items: [
+      { label: 'Workspace', href: '/workspace', icon: LayoutGrid },
+      { label: 'Tasks', href: '/tasks', icon: ListTodo },
+      { label: 'Calendar', href: '/calendar', icon: Calendar },
+      { label: 'Favorites', href: '/favorites', icon: Star },
+    ],
   },
   {
     title: 'Quality management',

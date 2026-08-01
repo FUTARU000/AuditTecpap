@@ -26,3 +26,4 @@ export * from './finding.dto';
 export * from './audit-evidence.dto';
 export * from './capa.dto';
 export * from './import.dto';
+export * from './productivity.dto';

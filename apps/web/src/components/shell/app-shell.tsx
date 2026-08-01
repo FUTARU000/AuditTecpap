@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Sidebar } from './sidebar';
 import { Topbar } from './topbar';
+import { CommandPalette } from '@/components/productivity/command-palette';
 import { useAuth } from '@/lib/auth-context';
 
 const TITLES: Record<string, string> = {
@@ -17,6 +18,12 @@ const TITLES: Record<string, string> = {
   '/kpis': 'KPIs',
   '/risks': 'Risks',
   '/search': 'Search',
+  '/workspace': 'My workspace',
+  '/tasks': 'Tasks',
+  '/calendar': 'Calendar',
+  '/favorites': 'Favorites',
+  '/notifications': 'Notifications',
+  '/import': 'Import',
   '/admin/users': 'Users',
   '/admin/roles': 'Roles',
   '/admin/permissions': 'Permissions',
@@ -67,6 +74,7 @@ export function AppShell({ children }: AppShellProps) {
         <Topbar onMenuClick={() => setMobileOpen(true)} title={title} />
         <main className="flex-1 px-4 py-6 lg:px-6 lg:py-8">{children}</main>
       </div>
+      <CommandPalette />
     </div>
   );
 }
