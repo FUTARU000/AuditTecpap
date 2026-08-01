@@ -1,25 +1,63 @@
 /**
- * Parser abstraction for the future bulk-import pipeline (thousands of files
- * currently in Google Drive). Parsers are pluggable: register one per format
- * and the ImportService resolves it automatically. No concrete parsers ship yet.
+ * Parser abstraction for the bulk-import pipeline. Parsers are pluggable:
+ * register one per format and the orchestrator resolves it automatically.
+ * Adding a future parser requires only implementing DocumentParser and
+ * registering it in the module — no orchestrator changes.
  */
 
-export type ImportFormat = 'word' | 'excel' | 'powerpoint' | 'pdf' | 'csv' | 'zip';
+import type { ImportFormat } from '@tecpap/config';
+
+export type { ImportFormat } from '@tecpap/config';
 
 export interface ImportFileInput {
   name: string;
+  /** Original drive-relative path (e.g. "Production/Procedures/PROC-014.docx"). */
+  originalPath?: string;
   buffer: Buffer;
   mimeType: string;
   size: number;
 }
 
-/** Structured result of parsing a single file into a QMS document. */
+/** A question extracted from a spreadsheet audit checklist. */
+export interface ParsedTemplateQuestion {
+  text: string;
+  type?: string;
+  required?: boolean;
+  evidenceRequired?: boolean;
+  findingRequired?: boolean;
+  weight?: number;
+}
+
+/** A section of a spreadsheet audit checklist. */
+export interface ParsedTemplateSection {
+  title: string;
+  questions: ParsedTemplateQuestion[];
+}
+
+/** Structured result of parsing a single file into enterprise knowledge. */
 export interface ParsedDocument {
   title: string;
   code?: string;
+  revision?: string;
+  author?: string;
+  approver?: string;
+  effectiveDate?: string;
   description?: string;
+  /** Full extracted text — indexed/previewed; the original file is preserved separately. */
   content?: string;
+  contentExcerpt?: string;
   metadata?: Record<string, unknown>;
+  pageCount?: number;
+  tableCount?: number;
+  imageCount?: number;
+  headings?: string[];
+  keywords?: string[];
+  /** True when a PDF yielded no machine-readable text and needs OCR. */
+  ocrNeeded?: boolean;
+  /** Detected Excel workbook purpose (e.g. AUDIT_CHECKLIST) — drives conversion. */
+  workbookPurpose?: string;
+  /** Sections/questions when the workbook is an audit checklist. */
+  sections?: ParsedTemplateSection[];
 }
 
 export interface DocumentParser {

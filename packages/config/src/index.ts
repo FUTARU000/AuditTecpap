@@ -5,4 +5,5 @@ export * from './qms';
 export * from './business-objects';
 export * from './audits';
 export * from './capa';
+export * from './import';
 export * from './env';

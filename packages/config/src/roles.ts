@@ -112,6 +112,8 @@ const MANAGER_PERMISSIONS = [
   'capas.read', 'capas.create', 'capas.update', 'capas.assign',
   'capas.verify', 'capas.effectiveness_review', 'capas.close', 'capas.export',
   'capa_actions.read', 'capa_actions.create', 'capa_actions.update', 'capa_actions.complete',
+  // Phase 7 — Legacy QMS import (full: run, review, govern)
+  'imports.read', 'imports.start', 'imports.review', 'imports.cancel', 'imports.stats',
 ];
 
 /**
@@ -159,6 +161,8 @@ const PILOT_PERMISSIONS = [
   'evidence.upload',
   // Phase 6 — CAPA (department-scoped)
   'capas.read', 'capa_actions.read', 'capa_actions.update', 'capa_actions.complete',
+  // Phase 7 — Legacy QMS import (view own department's imports)
+  'imports.read',
 ];
 
 /**

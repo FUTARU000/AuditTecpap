@@ -150,6 +150,10 @@ model User {
   capaVerifications      CapaVerification[]   @relation("CapaVerifier")
   capaEffectivenessReviews CapaEffectivenessReview[] @relation("CapaEffectivenessReviewer")
 
+  // Phase 7 — Legacy QMS import
+  importJobsStarted      ImportJob[]          @relation("ImportJobStarter")
+  importItemsReviewed    ImportItem[]         @relation("ImportItemReviewer")
+
   // Soft delete only — never permanently removed.
   deletedAt              DateTime?
 
@@ -976,4 +980,150 @@ model CapaEffectivenessReview {
   reviewedAt    DateTime             @default(now())
 
   @@map("capa_effectiveness_reviews")
+}
+
+// =====================================================================
+// Phase 7 — Legacy QMS Import & Enterprise Knowledge Digitalization
+// =====================================================================
+// Every import is an ImportJob made of ImportItems. Each item permanently
+// stores its original Drive traceability (path, filename, checksum, importer)
+// and, once reviewed, materializes into an existing QMS entity (controlled
+// document, audit template, business object) — never a duplicate store.
+
+enum ImportSource {
+  LOCAL
+  GOOGLE_DRIVE
+  UPLOAD
+}
+
+enum ImportJobStatus {
+  PENDING
+  SCANNING
+  PARSING
+  CLASSIFYING
+  WAITING_REVIEW
+  IMPORTING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum ImportItemType {
+  CONTROLLED_DOCUMENT
+  AUDIT_TEMPLATE
+  BUSINESS_OBJECT
+}
+
+enum ImportItemStatus {
+  PENDING
+  PARSED
+  CLASSIFIED
+  DUPLICATE
+  AWAITING_REVIEW
+  APPROVED
+  REJECTED
+  IMPORTED
+  FAILED
+  SKIPPED
+}
+
+enum ReviewDecision {
+  APPROVE
+  REJECT
+  MERGE
+  REPLACE_VERSION
+}
+
+model ImportJob {
+  id             String          @id @default(uuid())
+  source         ImportSource    @default(UPLOAD)
+  sourceLocation String?
+  name           String?
+  status         ImportJobStatus @default(PENDING)
+  startedById    String
+  startedBy      User            @relation("ImportJobStarter", fields: [startedById], references: [id])
+  progress       Int             @default(0)
+  processed      Int             @default(0)
+  imported       Int             @default(0)
+  skipped        Int             @default(0)
+  failed         Int             @default(0)
+  duplicates     Int             @default(0)
+  warnings       Int             @default(0)
+  errorMessage   String?
+  /// Aggregate roll-up (byDepartment, byCategory, byFormat, timings…).
+  stats          Json?
+  /// Array of { fileName, message } for surface-level error reporting.
+  errors         Json?
+  cancelledAt    DateTime?
+  completedAt    DateTime?
+
+  items          ImportItem[]
+
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([startedById])
+  @@index([status])
+  @@map("import_jobs")
+}
+
+model ImportItem {
+  id            String           @id @default(uuid())
+  jobId         String
+  job           ImportJob        @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  // ---- Permanent source traceability (never overwritten, never deleted) ----
+  originalPath  String
+  relativePath  String?
+  fileName      String
+  extension     String
+  mimeType      String?
+  sizeBytes     Int
+  checksum      String?
+  parentFolder  String?
+  format        String
+
+  // ---- Parsing ----
+  status        ImportItemStatus @default(PENDING)
+  parsedMetadata Json?
+  /// Extracted text (full for indexing/preview; truncated only for transport).
+  contentText   String?
+  pageCount     Int?
+  tableCount    Int?
+  imageCount    Int?
+  ocrNeeded     Boolean          @default(false)
+  ocrText       String?
+  warnings      Json?
+  error         String?
+
+  // ---- Classification ----
+  detectedType  String?
+  targetEntityType ImportItemType?
+  classification Json?
+
+  // ---- Duplicate / version detection ----
+  duplicateOfId String?
+  duplicateStrategy String?
+
+  // ---- Review ----
+  reviewDecision ReviewDecision?
+  reviewNote    String?
+  reviewById    String?
+  reviewBy      User?            @relation("ImportItemReviewer", fields: [reviewById], references: [id], onDelete: SetNull)
+  reviewedAt    DateTime?
+
+  // ---- Materialization ----
+  fileKey           String?
+  importedEntityId  String?
+  importedEntityType String?
+  importedAt        DateTime?
+
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([jobId])
+  @@index([status])
+  @@index([checksum])
+  @@index([importedEntityId])
+  @@map("import_items")
 }

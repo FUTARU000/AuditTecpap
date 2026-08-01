@@ -27,6 +27,7 @@ export const DOCUMENT_CATEGORIES: readonly DocumentCategorySeed[] = [
   { code: 'POLICY', name: 'Policy', icon: 'ShieldCheck', color: '#3A2A1E', description: 'Company policy', sortOrder: 10 },
   { code: 'EXTERNAL', name: 'External Document', icon: 'Globe', color: '#948877', description: 'External / third-party document', sortOrder: 11 },
   { code: 'TEMPLATE', name: 'Template', icon: 'LayoutTemplate', color: '#B8860B', description: 'Reusable template', sortOrder: 12 },
+  { code: 'CHECKLIST', name: 'Checklist', icon: 'ListChecks', color: '#0E7C6B', description: 'Audit / verification checklist', sortOrder: 13 },
 ];
 
 /** Typed relationships between controlled documents. */

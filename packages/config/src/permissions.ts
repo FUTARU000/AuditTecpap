@@ -182,6 +182,16 @@ export const PERMISSION_CATALOG: PermissionGroup[] = [
     ],
   },
   {
+    group: 'Import',
+    permissions: [
+      { key: 'imports.read', label: 'View import jobs & review queue', description: 'List jobs, items and statistics (department-scoped)' },
+      { key: 'imports.start', label: 'Start import jobs', description: 'Scan a folder / upload files into an import job' },
+      { key: 'imports.review', label: 'Review imports', description: 'Approve, reject, merge or replace versions' },
+      { key: 'imports.cancel', label: 'Cancel / retry / delete jobs', description: 'Manage job lifecycle' },
+      { key: 'imports.stats', label: 'View import statistics', description: 'Roll-up import dashboard metrics' },
+    ],
+  },
+  {
     group: 'Settings',
     permissions: [
       { key: 'settings.read', label: 'View system settings' },

@@ -51,6 +51,16 @@ export class StorageService implements OnModuleInit {
     return key;
   }
 
+  /** Read an object back into memory as a Buffer (used by the import pipeline). */
+  async getObject(key: string): Promise<Buffer> {
+    const stream = await this.client.getObject(this.bucket, key);
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : (chunk as Buffer));
+    }
+    return Buffer.concat(chunks);
+  }
+
   /** Short-lived presigned GET URL for a browser to download a file. */
   async presignedDownloadUrl(key: string, expirySeconds = 300): Promise<string> {
     return this.client.presignedGetObject(this.bucket, key, expirySeconds);

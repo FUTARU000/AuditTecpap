@@ -5,6 +5,7 @@ import {
   ClipboardList,
   FileStack,
   FileText,
+  FileUp,
   FolderTree,
   Gauge,
   LayoutDashboard,
@@ -68,6 +69,7 @@ export const navSections: NavSection[] = [
       { label: 'Departments', href: '/admin/departments', icon: Building2, permission: 'departments.read' },
       { label: 'Categories', href: '/admin/categories', icon: FileText, permission: 'categories.read' },
       { label: 'Audit log', href: '/admin/audit-log', icon: FileStack, permission: 'audit-log.read' },
+      { label: 'Import', href: '/import', icon: FileUp, permission: 'imports.read' },
     ],
   },
   {
