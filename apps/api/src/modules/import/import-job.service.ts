@@ -73,7 +73,16 @@ export class ImportJobService {
   // ------------------------------------------------------ scan (LOCAL/DRIVE)
   async runScan(actor: ActorContext, source: ImportSource, location: string, name?: string): Promise<ImportJobDetailDto> {
     const dto = await this.create(actor, { source, sourceLocation: location, name });
-    const files = await this.scanner.scan(source, location);
+    let files;
+    try {
+      files = await this.scanner.scan(source, location);
+    } catch (error) {
+      // Surface config/auth/folder errors (e.g. Google Drive not configured, folder
+      // inaccessible) as a clearly FAILED job instead of leaving it stuck PENDING forever.
+      const message = error instanceof Error ? error.message : String(error);
+      await this.prisma.importJob.update({ where: { id: dto.id }, data: { status: 'FAILED', errorMessage: message } });
+      throw error;
+    }
     const uploadFiles: UploadFile[] = await Promise.all(
       files.map(async (f) => ({ name: f.fileName, buffer: await f.read(), mimeType: f.mimeType, originalPath: f.originalPath })),
     );

@@ -42,6 +42,11 @@ export const envSchema = z.object({
   MINIO_BUCKET_DOCUMENTS: z.string().default('tecpap-documents'),
   MINIO_BUCKET_CERTIFICATES: z.string().default('tecpap-certificates'),
   MINIO_BUCKET_REPORTS: z.string().default('tecpap-reports'),
+
+  // Google Drive (manual import source only — optional; the feature is
+  // disabled with a clear error until both are configured).
+  GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON: z.string().optional(),
+  GOOGLE_DRIVE_FOLDER_ID: z.string().optional(),
 });
 
 export type AppEnv = z.infer<typeof envSchema>;

@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, FileUp, Loader2, PlusCircle, RefreshCw, Sparkles, Upload } from 'lucide-react';
+import { CheckCircle2, CloudDownload, FolderUp, Loader2, PlusCircle, RefreshCw, Sparkles, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ImportDashboardStatsDto, ImportJobDto, PaginatedResult } from '@tecpap/types';
 import { Badge, Button, Input, Label } from '@tecpap/ui';
@@ -10,7 +10,6 @@ import { api, RequestError, uploadFile } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useTranslation } from '@/lib/i18n';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
 import { EmptyState, ErrorState, PageHeader } from '@/components/admin/common';
 
 const JOB_TONE: Record<string, 'secondary' | 'warning' | 'success' | 'danger' | 'outline'> = {
@@ -34,10 +33,12 @@ export default function ImportDashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [scanOpen, setScanOpen] = useState(false);
+  const [driveOpen, setDriveOpen] = useState(false);
+  const [driveJobName, setDriveJobName] = useState('');
   const [jobName, setJobName] = useState('');
   const [files, setFiles] = useState<FileList | null>(null);
-  const [folder, setFolder] = useState('/data/qms-drive-export');
+  const folderRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { folderRef.current?.setAttribute('webkitdirectory', ''); }, []);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -57,6 +58,18 @@ export default function ImportDashboardPage() {
     finally { setBusy(false); }
   }
 
+  // Manual, user-initiated Drive import: the folder is configured server-side
+  // (GOOGLE_DRIVE_FOLDER_ID) — the frontend never sees or sends a folder id.
+  async function runDriveImport() {
+    setBusy(true);
+    try {
+      const detail = await api.post<{ id: string }>('/import/scan', { source: 'GOOGLE_DRIVE', name: driveJobName || undefined });
+      toast.success(t('import.created')); setDriveOpen(false); setDriveJobName('');
+      window.location.href = `/import/${detail.id}`;
+    } catch (err) { toast.error(err instanceof RequestError ? err.message : 'Google Drive import failed.'); }
+    finally { setBusy(false); }
+  }
+
   async function doUpload() {
     if (!files?.length) return;
     setBusy(true);
@@ -71,12 +84,23 @@ export default function ImportDashboardPage() {
     finally { setBusy(false); }
   }
 
-  async function doScan() {
+  // Browser folder upload (webkitdirectory): every file is uploaded with its
+  // folder-relative path, which the backend stores as the original path.
+  async function uploadFolder(list: FileList | null) {
+    if (!list?.length) return;
     setBusy(true);
     try {
-      const detail = await api.post<{ id: string }>('/import/scan', { sourceLocation: folder, name: jobName || undefined });
-      toast.success(t('import.created')); setScanOpen(false); window.location.href = `/import/${detail.id}`;
-    } catch (err) { toast.error(err instanceof RequestError ? err.message : 'Scan failed.'); }
+      const fd = new FormData();
+      const top = (list[0] as File & { webkitRelativePath?: string }).webkitRelativePath?.split('/')[0];
+      fd.append('name', jobName || top || 'Folder import');
+      fd.append('paths', JSON.stringify(Array.from(list).map((f) => (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name)));
+      for (const f of Array.from(list)) {
+        fd.append('files', f);
+      }
+      const detail = await uploadFile<{ id: string }>('/import', fd);
+      toast.success(t('import.created')); setJobName('');
+      window.location.href = `/import/${detail.id}`;
+    } catch (err) { toast.error(err instanceof RequestError ? err.message : 'Upload failed.'); }
     finally { setBusy(false); }
   }
 
@@ -93,7 +117,8 @@ export default function ImportDashboardPage() {
             {canStart ? (
               <>
                 <Button variant="outline" size="sm" onClick={() => { setJobName(''); setFiles(null); setUploadOpen(true); }}><Upload className="size-4" /> {t('import.upload')}</Button>
-                <Button variant="outline" size="sm" onClick={() => { setJobName(''); setScanOpen(true); }}><FileUp className="size-4" /> {t('import.scan_folder')}</Button>
+                <Button variant="outline" size="sm" onClick={() => folderRef.current?.click()}><FolderUp className="size-4" /> {t('import.upload_folder')}</Button>
+                <Button variant="outline" size="sm" onClick={() => { setDriveJobName(''); setDriveOpen(true); }}><CloudDownload className="size-4" /> {t('import.from_drive')}</Button>
                 <Button size="sm" onClick={() => void runDemo()} disabled={busy}>{busy ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />} {t('import.run_demo')}</Button>
               </>
             ) : null}
@@ -160,16 +185,18 @@ export default function ImportDashboardPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={scanOpen} onOpenChange={setScanOpen}>
+      <input ref={folderRef} type="file" multiple className="hidden" onChange={(e) => void uploadFolder(e.target.files)} />
+
+      <Dialog open={driveOpen} onOpenChange={setDriveOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>{t('import.scan_folder')}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t('import.from_drive')}</DialogTitle></DialogHeader>
           <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-2"><Label htmlFor="jn2">{t('common.name')}</Label><Input id="jn2" value={jobName} onChange={(e) => setJobName(e.target.value)} /></div>
-            <div className="flex flex-col gap-2"><Label htmlFor="fld">Folder path</Label><Textarea id="fld" value={folder} onChange={(e) => setFolder(e.target.value)} /></div>
+            <p className="text-sm text-muted-foreground">{t('import.drive_desc')}</p>
+            <div className="flex flex-col gap-2"><Label htmlFor="djn">{t('common.name')}</Label><Input id="djn" value={driveJobName} onChange={(e) => setDriveJobName(e.target.value)} /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setScanOpen(false)}>{t('common.cancel')}</Button>
-            <Button onClick={() => void doScan()} disabled={busy || !folder.trim()}>{busy ? <Loader2 className="size-4 animate-spin" /> : <FileUp className="size-4" />} {t('import.start')}</Button>
+            <Button variant="outline" onClick={() => setDriveOpen(false)}>{t('common.cancel')}</Button>
+            <Button onClick={() => void runDriveImport()} disabled={busy}>{busy ? <Loader2 className="size-4 animate-spin" /> : <CloudDownload className="size-4" />} {t('import.start')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -67,17 +67,21 @@ export const CATEGORY_INFERENCE: readonly { keywords: readonly string[]; categor
   { keywords: ['checklist', 'audit'], category: 'CHECKLIST' },
 ];
 
-/** Folder / keyword → department code inference. */
+/**
+ * Folder / keyword → department code inference. Codes must match the six
+ * seeded TECPAP departments (see DEPARTMENTS in constants.ts) — PROD, QUAL,
+ * PUR, HR, LOG, HYG. There is no MAINT/FIN/COM/IT department in this
+ * organization; a stale rule referencing an unseeded code would still bump
+ * the classifier's confidence score while silently resolving to no
+ * department, which is worse than not matching at all.
+ */
 export const DEPARTMENT_INFERENCE: readonly { keywords: readonly string[]; department: string }[] = [
   { keywords: ['production', 'prod', 'manufacturing', 'line'], department: 'PROD' },
   { keywords: ['quality', 'qual', 'qa', 'qc', 'laboratory', 'lab'], department: 'QUAL' },
-  { keywords: ['maintenance', 'maint', 'engineering'], department: 'MAINT' },
   { keywords: ['purchasing', 'purchase', 'procurement', 'supplier'], department: 'PUR' },
   { keywords: ['human resources', 'hr', 'people', 'training'], department: 'HR' },
-  { keywords: ['finance', 'accounting'], department: 'FIN' },
   { keywords: ['logistics', 'warehouse', 'distribution', 'stock'], department: 'LOG' },
-  { keywords: ['commercial', 'sales', 'customer', 'complaint'], department: 'COM' },
-  { keywords: ['it', 'information technology', 'system'], department: 'IT' },
+  { keywords: ['hygiene', 'sanitation', 'sanitary', 'food safety'], department: 'HYG' },
 ];
 
 /**

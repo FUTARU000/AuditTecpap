@@ -43,15 +43,24 @@ export class ImportController {
   @ApiOperation({ summary: 'Start an import job from uploaded files' })
   async upload(@UploadedFiles() files: Express.Multer.File[], @Body() dto: StartImportDto, @Req() req: Request) {
     if (!files?.length) return { error: 'No files uploaded' };
-    const uploadFiles = files.map((f) => ({ name: f.originalname, buffer: f.buffer, mimeType: f.mimetype, originalPath: f.originalname }));
+    // Folder-relative paths (from webkitdirectory) arrive as a JSON array in the
+    // `paths` form field — multer strips directory info from originalname.
+    const relPaths = dto.paths ? (JSON.parse(dto.paths) as string[]) : undefined;
+    const uploadFiles = files.map((f, i) => {
+      const raw = relPaths?.[i] ?? f.originalname;
+      const normalized = raw.replace(/\\/g, '/');
+      const base = normalized.split('/').pop() || normalized;
+      return { name: base, buffer: f.buffer, mimeType: f.mimetype, originalPath: normalized };
+    });
     return this.jobs.runUpload(actorFromRequest(req), uploadFiles, dto.name);
   }
 
   @Post('scan')
   @Permissions('imports.start')
-  @ApiOperation({ summary: 'Start an import job by scanning a local folder' })
+  @ApiOperation({ summary: 'Scan a server-mounted folder or a configured Google Drive folder' })
   scan(@Body() dto: ScanImportDto, @Req() req: Request) {
-    return this.jobs.runScan(actorFromRequest(req), 'LOCAL', dto.sourceLocation, dto.name);
+    // Defaults to LOCAL so pre-existing callers that never sent `source` keep working unchanged.
+    return this.jobs.runScan(actorFromRequest(req), dto.source ?? 'LOCAL', dto.sourceLocation ?? '', dto.name);
   }
 
   @Post('demo')
