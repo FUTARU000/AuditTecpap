@@ -23,16 +23,14 @@ import { DocumentCategoriesModule } from './modules/document-categories/document
 import { DocumentsModule } from './modules/documents/documents.module';
 import { HealthModule } from './modules/health/health.module';
 import { ImportModule } from './modules/import/import.module';
-import { KpisModule } from './modules/kpis/kpis.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
 import { ProductivityModule } from './modules/productivity/productivity.module';
 import { PrismaModule } from './modules/prisma/prisma.module';
 import { ProcessesModule } from './modules/processes/processes.module';
-import { ProcessRisksModule } from './modules/process-risks/process-risks.module';
-import { ProcessWorkspaceModule } from './modules/process-workspace/process-workspace.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { SearchModule } from './modules/search/search.module';
 import { StorageModule } from './modules/storage/storage.module';
+import { WorkflowModule } from './modules/workflow/workflow.module';
 import { UsersModule } from './modules/users/users.module';
 
 @Module({
@@ -70,14 +68,12 @@ import { UsersModule } from './modules/users/users.module';
     ImportModule,
     ActivityTimelineModule,
     BusinessObjectsModule,
-    KpisModule,
-    ProcessRisksModule,
-    ProcessWorkspaceModule,
     SearchModule,
     AuditTemplatesModule,
     AuditsModule,
     CapaModule,
     ProductivityModule,
+    WorkflowModule,
     ScheduleModule.forRoot(),
   ],
   // Execution order = registration order: rate-limit → authenticate → authorize → scope.

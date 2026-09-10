@@ -10,20 +10,17 @@ import { useAuth } from '@/lib/auth-context';
 const TITLES: Record<string, string> = {
   '/dashboard': 'Dashboard',
   '/documents': 'Documents',
-  '/processes': 'Processes',
   '/audit-templates': 'Audit templates',
   '/audits': 'Audits',
   '/capas': 'CAPA',
-  '/business-objects': 'Business objects',
-  '/kpis': 'KPIs',
-  '/risks': 'Risks',
   '/search': 'Search',
   '/workspace': 'My workspace',
   '/tasks': 'Tasks',
   '/calendar': 'Calendar',
-  '/favorites': 'Favorites',
+  '/bookmarks': 'Bookmarks',
   '/notifications': 'Notifications',
   '/import': 'Import',
+  '/documents/insights': 'Document insights',
   '/admin/users': 'Users',
   '/admin/roles': 'Roles',
   '/admin/permissions': 'Permissions',
@@ -34,11 +31,11 @@ const TITLES: Record<string, string> = {
 
 function deriveTitle(pathname: string): string {
   if (TITLES[pathname]) return TITLES[pathname];
-  if (pathname.startsWith('/processes/')) return 'Process workspace';
-  if (pathname.startsWith('/business-objects/')) return 'Business object';
   if (pathname.startsWith('/audit-templates/')) return 'Template';
   if (pathname.startsWith('/audits/')) return 'Audit execution';
   if (pathname.startsWith('/capas/')) return 'CAPA workspace';
+  if (pathname.includes('/viewer')) return 'Document viewer';
+  if (pathname.includes('/compare')) return 'Compare versions';
   return 'TECPAP Audit';
 }
 

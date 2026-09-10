@@ -26,30 +26,11 @@ export class SearchService {
     const departmentId = scope?.departmentId ?? undefined;
     const contains = { contains: q, mode: 'insensitive' as const };
 
-    const [processes, documents, objects, kpis, risks, templates, audits, findings, capas] = await Promise.all([
-      this.prisma.process.findMany({
-        where: { deletedAt: null, ...(scoped ? { departmentId } : {}), OR: [{ name: contains }, { code: contains }] },
-        take: LIMIT,
-        include: { department: { select: { name: true } } },
-      }),
+    const [documents, templates, audits, findings, capas] = await Promise.all([
       this.prisma.controlledDocument.findMany({
         where: { deletedAt: null, ...(scoped ? { departmentId } : {}), OR: [{ title: contains }, { code: contains }] },
         take: LIMIT,
         select: { id: true, title: true, code: true, department: { select: { name: true } } },
-      }),
-      this.prisma.businessObject.findMany({
-        where: { deletedAt: null, ...(scoped ? { departmentId } : {}), OR: [{ name: contains }, { code: contains }] },
-        take: LIMIT,
-        include: { type: { select: { name: true } } },
-      }),
-      this.prisma.kpi.findMany({
-        where: { ...(scoped ? { departmentId } : {}), name: contains },
-        take: LIMIT,
-      }),
-      this.prisma.processRisk.findMany({
-        where: { title: contains, ...(scoped ? { process: { departmentId } } : {}) },
-        take: LIMIT,
-        include: { process: { select: { id: true, name: true } } },
       }),
       this.prisma.auditTemplate.findMany({ where: { name: contains }, take: LIMIT, select: { id: true, name: true, category: true } }),
       this.prisma.audit.findMany({
@@ -71,29 +52,9 @@ export class SearchService {
 
     const groups: SearchGroup[] = [
       {
-        type: 'process' as EntityType,
-        label: ENTITY_TYPE_LABELS['process'] ?? 'Processes',
-        results: processes.map((process) => ({ id: process.id, title: process.name, subtitle: process.department?.name ?? null, href: `/processes/${process.id}` })),
-      },
-      {
         type: 'document' as EntityType,
         label: ENTITY_TYPE_LABELS['document'] ?? 'Documents',
         results: documents.map((document) => ({ id: document.id, title: document.title, subtitle: `${document.code}${document.department?.name ? ' · ' + document.department.name : ''}`, href: `/documents/${document.id}` })),
-      },
-      {
-        type: 'business_object' as EntityType,
-        label: ENTITY_TYPE_LABELS['business_object'] ?? 'Business objects',
-        results: objects.map((object) => ({ id: object.id, title: object.name, subtitle: object.type?.name ?? null, href: `/business-objects/${object.id}` })),
-      },
-      {
-        type: 'kpi' as EntityType,
-        label: ENTITY_TYPE_LABELS['kpi'] ?? 'KPIs',
-        results: kpis.map((kpi) => ({ id: kpi.id, title: kpi.name, subtitle: kpi.currentValue !== null ? `${kpi.currentValue}${kpi.unit ?? ''}` : null, href: `/kpis/${kpi.id}` })),
-      },
-      {
-        type: 'risk' as EntityType,
-        label: ENTITY_TYPE_LABELS['risk'] ?? 'Risks',
-        results: risks.map((risk) => ({ id: risk.id, title: risk.title, subtitle: risk.process?.name ?? null, href: `/processes/${risk.process?.id ?? ''}` })),
       },
       {
         type: 'template',

@@ -1,13 +1,20 @@
 'use client';
 
+import Link from 'next/link';
 import { useAsync } from '@/lib/use-async';
 import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 import { useTranslation } from '@/lib/i18n';
 import type { DashboardStatsDto } from '@tecpap/types';
 import { Badge } from '@tecpap/ui';
 import { PageHeader } from '@/components/admin/common';
-import { FolderTree, FileText, Clock, AlertTriangle, Workflow, Building2, ClipboardCheck, Gauge } from 'lucide-react';
+import { FolderTree, FileText, Clock, AlertTriangle, Building2, ClipboardCheck, Gauge, Upload, CheckCircle2, ClipboardList, PlayCircle } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+
+/** A fresh platform: no documents and no audit activity yet — show onboarding. */
+function isFresh(data: DashboardStatsDto): boolean {
+  return data.documents === 0 && data.audits.scheduled === 0 && data.audits.inProgress === 0 && data.audits.completed === 0;
+}
 
 function StatCard({ label, value, icon: Icon, tone = 'default' }: { label: string; value: number | string; icon: LucideIcon; tone?: 'default' | 'success' | 'warning' | 'danger' }) {
   const toneClass = tone === 'success' ? 'text-status-success' : tone === 'warning' ? 'text-status-warning' : tone === 'danger' ? 'text-destructive' : 'text-primary';
@@ -23,8 +30,11 @@ function StatCard({ label, value, icon: Icon, tone = 'default' }: { label: strin
 }
 
 export default function DashboardPage() {
-  const { data, loading, error, reload } = useAsync<DashboardStatsDto>(() => api.get('/dashboard/stats'));
+  const { data, error, reload } = useAsync<DashboardStatsDto>(() => api.get('/dashboard/stats'));
   const { t } = useTranslation();
+  const { hasPermission } = useAuth();
+  const isManager = hasPermission('capas.verify');
+  const isPilot = !isManager && hasPermission('capas.submit');
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
@@ -38,9 +48,29 @@ export default function DashboardPage() {
         </div>
       ) : (
         <>
+          {isFresh(data) ? (
+            <section className="rounded-lg border border-primary/30 bg-primary/5 p-6">
+              <h2 className="text-lg font-semibold text-foreground">{t('onboarding.title')}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">{t('onboarding.subtitle')}</p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  { icon: Upload, title: t('onboarding.step1'), desc: t('onboarding.step1_desc'), href: '/import' },
+                  { icon: CheckCircle2, title: t('onboarding.step2'), desc: t('onboarding.step2_desc'), href: '/documents' },
+                  { icon: ClipboardList, title: t('onboarding.step4'), desc: t('onboarding.step4_desc'), href: '/audit-templates' },
+                  { icon: PlayCircle, title: t('onboarding.step5'), desc: t('onboarding.step5_desc'), href: '/audits' },
+                ].map((step, i) => (
+                  <Link key={step.href} href={step.href} className="group rounded-lg border border-border bg-background p-4 transition-colors hover:border-primary">
+                    <div className="flex items-center gap-2"><span className="flex size-7 items-center justify-center rounded-md bg-muted text-xs font-semibold text-muted-foreground">{i + 1}</span><step.icon className="size-4 text-primary" /></div>
+                    <p className="mt-2 text-sm font-medium text-foreground">{step.title}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{step.desc}</p>
+                  </Link>
+                ))}
+              </div>
+              <Link href="/import" className="mt-5 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"><Upload className="size-4" /> {t('onboarding.import_cta')}</Link>
+            </section>
+          ) : null}
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <StatCard label={t('dashboard.departments', 'Departments')} value={data.departments} icon={Building2} />
-            <StatCard label={t('dashboard.processes', 'Processes')} value={data.processes} icon={Workflow} />
             <StatCard label={t('dashboard.documents', 'Controlled documents')} value={data.documents} icon={FolderTree} />
             <StatCard label={t('dashboard.awaiting_approval', 'Awaiting approval')} value={data.awaitingApproval} icon={Clock} tone={data.awaitingApproval > 0 ? 'warning' : 'default'} />
             <StatCard label={t('dashboard.drafts', 'Drafts')} value={data.drafts} icon={FileText} />
@@ -96,9 +126,24 @@ export default function DashboardPage() {
               )}
             </div>
           </div>
+
+          {/* Phase 7.7 — TECPAP role-scoped CAPA workflow panels */}
+          {isManager && (data.capasToVerify || data.capasToValidate || data.capasReturned) ? (
+            <div className="grid gap-4 sm:grid-cols-3">
+              <StatCard label={t('capa.capas_to_verify', 'CAPAs to Verify')} value={data.capasToVerify ?? 0} icon={ClipboardCheck} tone="warning" />
+              <StatCard label={t('capa.capas_to_validate', 'CAPAs to Validate')} value={data.capasToValidate ?? 0} icon={CheckCircle2} tone="default" />
+              <StatCard label={t('capa.returned_capas', 'Returned CAPAs')} value={data.capasReturned ?? 0} icon={AlertTriangle} tone="danger" />
+            </div>
+          ) : null}
+
+          {isPilot && (data.myActionsPending !== undefined || data.myReturnedCapas !== undefined) ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <StatCard label={t('capa.my_actions', 'My Required Actions')} value={data.myActionsPending ?? 0} icon={ClipboardCheck} tone="warning" />
+              <StatCard label={t('capa.returned_capas', 'Returned CAPAs')} value={data.myReturnedCapas ?? 0} icon={AlertTriangle} tone="danger" />
+            </div>
+          ) : null}
         </>
       )}
-      {loading ? null : null}
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Badge, cn } from '@tecpap/ui';
+import { cn } from '@tecpap/ui';
 import { navSections, type NavItem } from '@/lib/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useTranslation } from '@/lib/i18n';
@@ -49,21 +49,7 @@ interface NavRowProps {
 function NavRow({ item, pathname, onNavigate }: NavRowProps) {
   const { t } = useTranslation();
   const Icon = item.icon;
-  const active =
-    typeof item.href === 'string' &&
-    (pathname === item.href || pathname.startsWith(`${item.href}/`));
-
-  if (item.disabled || !item.href) {
-    return (
-      <span className="flex cursor-not-allowed items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground/50">
-        <Icon className="size-4" />
-        <span>{t(`nav.${item.label}`, item.label)}</span>
-        <Badge variant="outline" className="ml-auto border-transparent bg-muted px-1.5 py-0 text-[10px] text-muted-foreground">
-          soon
-        </Badge>
-      </span>
-    );
-  }
+  const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
 
   return (
     <Link
@@ -77,7 +63,7 @@ function NavRow({ item, pathname, onNavigate }: NavRowProps) {
           : 'text-foreground/80 hover:bg-accent hover:text-accent-foreground',
       )}
     >
-      <Icon className="size-4" />
+      <Icon className="size-[18px]" />
       <span>{t(`nav.${item.label}`, item.label)}</span>
     </Link>
   );

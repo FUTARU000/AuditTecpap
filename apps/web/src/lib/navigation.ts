@@ -1,5 +1,6 @@
 import {
-  AlertTriangle,
+  BarChart3,
+  Bookmark,
   Building2,
   Calendar,
   ClipboardCheck,
@@ -8,26 +9,20 @@ import {
   FileText,
   FileUp,
   FolderTree,
-  Gauge,
   LayoutDashboard,
   LayoutGrid,
   ListTodo,
   Lock,
-  Package,
-  Settings,
   ShieldCheck,
-  Star,
   Users,
-  Workflow,
   Wrench,
   type LucideIcon,
 } from 'lucide-react';
 
 export interface NavItem {
   label: string;
-  href?: string;
+  href: string;
   icon: LucideIcon;
-  disabled?: boolean;
   permission?: string;
 }
 
@@ -47,14 +42,14 @@ export const navSections: NavSection[] = [
       { label: 'Workspace', href: '/workspace', icon: LayoutGrid },
       { label: 'Tasks', href: '/tasks', icon: ListTodo },
       { label: 'Calendar', href: '/calendar', icon: Calendar },
-      { label: 'Favorites', href: '/favorites', icon: Star },
+      { label: 'Bookmarks', href: '/bookmarks', icon: Bookmark },
     ],
   },
   {
     title: 'Quality management',
     items: [
       { label: 'Documents', href: '/documents', icon: FolderTree, permission: 'documents.read' },
-      { label: 'Processes', href: '/processes', icon: Workflow, permission: 'processes.read' },
+      { label: 'Document insights', href: '/documents/insights', icon: BarChart3, permission: 'documents.read' },
     ],
   },
   {
@@ -63,14 +58,6 @@ export const navSections: NavSection[] = [
       { label: 'Templates', href: '/audit-templates', icon: ClipboardList, permission: 'templates.read' },
       { label: 'Audits', href: '/audits', icon: ClipboardCheck, permission: 'audits.read' },
       { label: 'CAPA', href: '/capas', icon: Wrench, permission: 'capas.read' },
-    ],
-  },
-  {
-    title: 'Operational',
-    items: [
-      { label: 'Business objects', href: '/business-objects', icon: Package, permission: 'business_objects.read' },
-      { label: 'KPIs', href: '/kpis', icon: Gauge, permission: 'kpis.read' },
-      { label: 'Risks', href: '/risks', icon: AlertTriangle, permission: 'risks.read' },
     ],
   },
   {
@@ -84,9 +71,5 @@ export const navSections: NavSection[] = [
       { label: 'Audit log', href: '/admin/audit-log', icon: FileStack, permission: 'audit-log.read' },
       { label: 'Import', href: '/import', icon: FileUp, permission: 'imports.read' },
     ],
-  },
-  {
-    title: 'System',
-    items: [{ label: 'Settings', icon: Settings, disabled: true }],
   },
 ];

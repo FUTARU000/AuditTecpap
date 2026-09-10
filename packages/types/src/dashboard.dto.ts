@@ -22,7 +22,6 @@ export interface CapaDashboardStats {
 
 export interface DashboardStatsDto {
   departments: number;
-  processes: number;
   documents: number;
   byStatus: Array<{ status: DocumentStatus; count: number }>;
   drafts: number;
@@ -46,6 +45,12 @@ export interface DashboardStatsDto {
   }>;
   audits: AuditDashboardStats;
   capas: CapaDashboardStats;
+  // Phase 7.7 — TECPAP role-scoped workflow metrics (optional, populated by role)
+  capasToVerify?: number;
+  capasToValidate?: number;
+  capasReturned?: number;
+  myActionsPending?: number;
+  myReturnedCapas?: number;
 }
 
 export interface GlobalSearchResultDto {

@@ -14,12 +14,9 @@ const PAGES: { label: string; href: string; kw: string }[] = [
   { label: 'Tasks', href: '/tasks', kw: 'tasks tâches' },
   { label: 'Calendar', href: '/calendar', kw: 'calendar calendrier' },
   { label: 'Notifications', href: '/notifications', kw: 'notifications' },
-  { label: 'Favorites', href: '/favorites', kw: 'favorites favoris' },
   { label: 'Documents', href: '/documents', kw: 'documents' },
   { label: 'Audits', href: '/audits', kw: 'audits' },
   { label: 'CAPA', href: '/capas', kw: 'capa corrective' },
-  { label: 'KPIs', href: '/kpis', kw: 'kpi indicators indicateurs' },
-  { label: 'Risks', href: '/risks', kw: 'risks risques' },
   { label: 'Import', href: '/import', kw: 'import migration' },
   { label: 'Search', href: '/search', kw: 'search recherche' },
 ];
