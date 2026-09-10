@@ -22,3 +22,63 @@
     scrollbar-color: hsl(var(--border)) transparent;
   }
 }
+
+/* Enterprise Word HTML rendering — styles mammoth HTML output to resemble Word.
+   Uses EXPLICIT colors (not theme CSS vars) because content renders on a forced
+   white "document page" — theme vars would produce invisible text in dark mode. */
+@layer components {
+  .docx-content {
+    @apply text-sm leading-relaxed;
+    color: #1a1a1a;
+  }
+  .docx-content :is(h1, h2, h3, h4, h5, h6) {
+    @apply font-semibold mt-6 mb-3;
+    color: #111827;
+  }
+  .docx-content h1 { @apply text-2xl; }
+  .docx-content h2 { @apply text-xl; }
+  .docx-content h3 { @apply text-lg; }
+  .docx-content h4 { @apply text-base; }
+  .docx-content p {
+    @apply my-3;
+    color: #1a1a1a;
+  }
+  .docx-content ul {
+    @apply list-disc pl-6 my-3;
+    color: #1a1a1a;
+  }
+  .docx-content ol {
+    @apply list-decimal pl-6 my-3;
+    color: #1a1a1a;
+  }
+  .docx-content li {
+    @apply my-1;
+    color: #1a1a1a;
+  }
+  .docx-content a {
+    color: #2563eb;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .docx-content table {
+    @apply w-full border-collapse my-4 text-sm;
+  }
+  .docx-content th, .docx-content td {
+    border: 1px solid #d1d5db;
+    @apply px-3 py-1.5 align-top;
+    color: #1a1a1a;
+  }
+  .docx-content th {
+    @apply font-semibold;
+    background: #f3f4f6;
+    color: #111827;
+  }
+  .docx-content strong {
+    @apply font-semibold;
+    color: #111827;
+  }
+  .docx-content em { @apply italic; }
+  .docx-content u { @apply underline; }
+  .docx-content img { max-width: 100%; height: auto; border-radius: 4px; }
+  .docx-content br { @apply my-1; }
+}

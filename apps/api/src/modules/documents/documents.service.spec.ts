@@ -14,6 +14,7 @@ describe('DocumentsService', () => {
     department: { findUnique: MockFn; findMany: MockFn };
     documentCategory: { findUnique: MockFn; findMany: MockFn };
     process: { findFirst: MockFn; findMany: MockFn };
+    user: { findUnique: MockFn; findMany: MockFn };
     $queryRawUnsafe: MockFn;
   };
 
@@ -23,17 +24,19 @@ describe('DocumentsService', () => {
       department: { findUnique: vi.fn(), findMany: vi.fn() },
       documentCategory: { findUnique: vi.fn(), findMany: vi.fn() },
       process: { findFirst: vi.fn(), findMany: vi.fn() },
+      user: { findUnique: vi.fn(), findMany: vi.fn() },
       $queryRawUnsafe: vi.fn(),
     };
-    service = new DocumentsService(prisma as unknown as PrismaService, { record: vi.fn() } as unknown as AuditLogService);
+    service = new DocumentsService(prisma as unknown as PrismaService, { record: vi.fn() } as unknown as AuditLogService, { emit: vi.fn().mockResolvedValue(null) } as never);
   });
 
   it('creates a document and audits it', async () => {
     prisma.department.findUnique.mockResolvedValue({ id: 'd1' });
     prisma.documentCategory.findUnique.mockResolvedValue({ id: 'c1' });
+    prisma.user.findUnique.mockResolvedValue({ role: { isGlobal: false } });
     prisma.controlledDocument.create.mockImplementation(({ data }: { data: Record<string, unknown> }) =>
       Promise.resolve({
-        ...data, id: 'doc1', currentVersionId: null, version: '0.1', revision: 0, status: 'DRAFT',
+        ...data, id: 'doc1', currentVersionId: null, version: '0.1', revision: 0, status: data.status ?? 'DRAFT',
         keywords: [], confidentiality: 'INTERNAL', effectiveDate: null, reviewDate: null, expirationDate: null,
         updatedById: null, createdAt: new Date(0), updatedAt: new Date(0),
         department: { name: 'Production' }, process: null, category: { name: 'Procedure', color: '#000' },
@@ -45,6 +48,24 @@ describe('DocumentsService', () => {
     expect(doc.id).toBe('doc1');
     expect(doc.status).toBe('DRAFT');
     expect(prisma.controlledDocument.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('creates a document as APPROVED when uploader is a global-role user (Audit Manager)', async () => {
+    prisma.department.findUnique.mockResolvedValue({ id: 'd1' });
+    prisma.documentCategory.findUnique.mockResolvedValue({ id: 'c1' });
+    prisma.user.findUnique.mockResolvedValue({ role: { isGlobal: true } });
+    prisma.controlledDocument.create.mockImplementation(({ data }: { data: Record<string, unknown> }) =>
+      Promise.resolve({
+        ...data, id: 'doc2', currentVersionId: null, version: '0.1', revision: 0, status: data.status ?? 'DRAFT',
+        keywords: [], confidentiality: 'INTERNAL', effectiveDate: null, reviewDate: null, expirationDate: null,
+        updatedById: null, createdAt: new Date(0), updatedAt: new Date(0),
+        department: { name: 'Production' }, process: null, category: { name: 'Procedure', color: '#000' },
+        owner: null, reviewer: null, approver: null, currentVersion: null,
+      }),
+    );
+
+    const doc = await service.create({ title: 'SOP', code: 'DOC-2', departmentId: 'd1', categoryId: 'c1' }, ACTOR);
+    expect(doc.status).toBe('APPROVED');
   });
 
   it('rejects an invalid status transition', async () => {

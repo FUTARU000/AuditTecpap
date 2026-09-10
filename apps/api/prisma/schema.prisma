@@ -161,6 +161,13 @@ model User {
   subscriptions          ReportSubscription[] @relation("UserSubscriptions")
   tasks                  UserTask[]           @relation("UserTasks")
 
+  // Phase 7.6 — Enterprise document experience
+  documentComments       DocumentComment[]        @relation("UserDocumentComments")
+  resolvedComments       DocumentComment[]        @relation("UserCommentResolver")
+  documentAcknowledgements DocumentAcknowledgement[] @relation("UserDocumentAcknowledgements")
+  documentCollections    DocumentCollection[]     @relation("UserDocumentCollections")
+  documentBookmarks      DocumentBookmark[]       @relation("UserDocumentBookmarks")
+
   // Soft delete only — never permanently removed.
   deletedAt              DateTime?
 
@@ -367,6 +374,11 @@ model ControlledDocument {
   versions        DocumentVersion[]
   relationsAsSource DocumentRelation[] @relation("RelationSource")
   relationsAsTarget DocumentRelation[] @relation("RelationTarget")
+
+  // Phase 7.6 — Enterprise document experience
+  comments            DocumentComment[]        @relation("DocumentComments")
+  acknowledgements    DocumentAcknowledgement[] @relation("DocumentAcknowledgements")
+  collectionItems     DocumentCollectionItem[] @relation("DocumentCollectionLinks")
 
   /// PostgreSQL full-text search vector — generated + indexed via a raw migration.
   searchVector   Unsupported("tsvector")?
@@ -784,6 +796,11 @@ enum CapaStatus {
   PENDING_EFFECTIVENESS
   CLOSED
   CANCELLED
+  /// Phase 7.7 — TECPAP workflow
+  ASSIGNED
+  EVIDENCE_UPLOADED
+  RETURNED
+  VALIDATED
 }
 
 enum CapaPriority {
@@ -850,7 +867,8 @@ model Capa {
 
   rootCause            CapaRootCauseAnalysis?
   actions              CapaAction[]
-  verification         CapaVerification?
+  /// Phase 3 — every verification attempt is preserved (1:N); never overwritten.
+  verifications        CapaVerification[]
   effectiveness        CapaEffectivenessReview?
 
   deletedAt            DateTime?
@@ -963,9 +981,12 @@ model CapaActionEvidence {
   @@map("capa_action_evidence")
 }
 
+/// Phase 3 — immutable audit trail: one row per verification attempt, never
+/// updated or upserted. A CAPA that fails, is reworked, and is resubmitted
+/// accumulates one CapaVerification row per attempt (schema.prisma §21.4).
 model CapaVerification {
   id           String             @id @default(uuid())
-  capaId       String             @unique
+  capaId       String
   capa         Capa               @relation(fields: [capaId], references: [id], onDelete: Cascade)
   verifiedById String
   verifiedBy   User               @relation("CapaVerifier", fields: [verifiedById], references: [id])
@@ -973,6 +994,7 @@ model CapaVerification {
   notes        String?
   verifiedAt   DateTime           @default(now())
 
+  @@index([capaId, verifiedAt])
   @@map("capa_verifications")
 }
 
@@ -1153,8 +1175,17 @@ model Notification {
   type        String               // AUDIT_ASSIGNED | CAPA_OVERDUE | DOCUMENT_AWAITING_APPROVAL | ...
   category    String               // audit | capa | document | risk | kpi | import | system
   severity    NotificationSeverity @default(INFO)
+  /// English fallback text — always populated (legacy rows and the email body
+  /// both rely on it). When `params` is set, the frontend prefers rendering a
+  /// localized version from `type` + `params` via the shared notification
+  /// template catalog (packages/config) instead of this literal text.
   title       String
   message     String
+  /// Phase 5 — structured interpolation params for centralized EN/FR
+  /// notification templates. Null on notifications created before Phase 5
+  /// (and on any type with no template, e.g. free-text comment mentions) —
+  /// those always render from the stored `title`/`message` above.
+  params      Json?
   entityType  String?
   entityId    String?
   actionUrl   String?
@@ -1237,4 +1268,97 @@ model UserTask {
   @@unique([userId, entityType, entityId])
   @@index([userId, completedAt])
   @@map("user_tasks")
+}
+
+// =====================================================================
+// Phase 7.6 — Enterprise Document Experience
+// =====================================================================
+// Comments, read acknowledgements, collections (links only — no file
+// duplication), and bookmarks. Insights + history reuse the existing
+// ActivityTimeline; preview/compare/export reuse the import parsers + storage.
+
+model DocumentComment {
+  id            String   @id @default(uuid())
+  documentId    String
+  document      ControlledDocument @relation("DocumentComments", fields: [documentId], references: [id], onDelete: Cascade)
+  versionId     String?
+  parentId      String?
+  parent        DocumentComment?   @relation("CommentReplies", fields: [parentId], references: [id], onDelete: NoAction)
+  replies       DocumentComment[]  @relation("CommentReplies")
+  authorId      String
+  author        User     @relation("UserDocumentComments", fields: [authorId], references: [id])
+  body          String
+  mentions      String[] @default([])
+  resolved      Boolean  @default(false)
+  resolvedById  String?
+  resolvedBy    User?    @relation("UserCommentResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+  resolvedAt    DateTime?
+  editedAt      DateTime?
+  /// Edit history — array of prior bodies + timestamp.
+  previousBodies Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([documentId])
+  @@index([parentId])
+  @@map("document_comments")
+}
+
+model DocumentAcknowledgement {
+  id             String   @id @default(uuid())
+  documentId     String
+  document       ControlledDocument @relation("DocumentAcknowledgements", fields: [documentId], references: [id], onDelete: Cascade)
+  versionId      String
+  userId         String
+  user           User     @relation("UserDocumentAcknowledgements", fields: [userId], references: [id], onDelete: Cascade)
+  departmentId   String?
+  acknowledgedAt DateTime @default(now())
+  createdAt      DateTime @default(now())
+
+  @@unique([documentId, versionId, userId])
+  @@index([documentId])
+  @@map("document_acknowledgements")
+}
+
+model DocumentCollection {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation("UserDocumentCollections", fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items       DocumentCollectionItem[]
+
+  @@map("document_collections")
+}
+
+/// A link from a collection to a document — no bytes are duplicated.
+model DocumentCollectionItem {
+  id           String   @id @default(uuid())
+  collectionId String
+  collection   DocumentCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  documentId   String
+  document     ControlledDocument @relation("DocumentCollectionLinks", fields: [documentId], references: [id], onDelete: Cascade)
+  addedAt      DateTime @default(now())
+
+  @@unique([collectionId, documentId])
+  @@map("document_collection_items")
+}
+
+model DocumentBookmark {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation("UserDocumentBookmarks", fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // document | version | search | collection
+  entityId  String
+  versionId String?
+  label     String
+  href      String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, type, entityId])
+  @@index([userId])
+  @@map("document_bookmarks")
 }

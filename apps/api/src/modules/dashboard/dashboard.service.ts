@@ -14,10 +14,12 @@ export class DashboardService {
     private readonly auditLog: AuditLogService,
   ) {}
 
-  async stats(scope: DataScope | undefined): Promise<DashboardStatsDto> {
+  async stats(scope: DataScope | undefined, userId?: string, permissions?: string[]): Promise<DashboardStatsDto> {
     const docWhere = departmentScopeWhere(scope, { deletedAt: null }) as Prisma.ControlledDocumentWhereInput;
     const scoped = !!scope && !scope.isGlobal;
     const departmentId = scope?.departmentId ?? undefined;
+    const isManager = permissions?.includes('capas.verify') ?? false;
+    const isPilot = !isManager && (permissions?.includes('capas.submit') ?? false);
     const auditWhere: Prisma.AuditWhereInput = scoped ? { departmentId } : {};
     const findingWhere: Prisma.FindingWhereInput = scoped ? { audit: { departmentId } } : {};
     const windowMs = DOCUMENT_EXPIRING_WINDOW_DAYS * 24 * 60 * 60 * 1000;
@@ -25,11 +27,10 @@ export class DashboardService {
     const soon = new Date(now.getTime() + windowMs);
 
     const [
-      departments, processes, documents, byStatusRaw, drafts, published, expiring, awaiting, recent, awaitingDocs,
+      departments, documents, byStatusRaw, drafts, published, expiring, awaiting, recent, awaitingDocs,
       scheduledAudits, inProgressAudits, completedAudits, overdueAudits, totalAudits, openFindings, findingsBySeverityRaw, complianceAvg, openCapas, overdueCapas, capaPendingVerif, capaPendingEff, capaClosed,
     ] = await Promise.all([
       this.prisma.department.count({ where: scoped ? { id: departmentId } : {} }),
-      this.prisma.process.count({ where: { deletedAt: null, ...departmentScopeWhere(scope) } }),
       this.prisma.controlledDocument.count({ where: docWhere }),
       this.prisma.controlledDocument.groupBy({ by: ['status'], where: docWhere, _count: { _all: true } }),
       this.prisma.controlledDocument.count({ where: { ...docWhere, status: 'DRAFT' } }),
@@ -73,7 +74,6 @@ export class DashboardService {
 
     return {
       departments,
-      processes,
       documents,
       byStatus: byStatusRaw.map((row) => ({ status: row.status as DocumentStatus, count: row._count._all })),
       drafts,
@@ -97,6 +97,30 @@ export class DashboardService {
       })),
       audits,
       capas: { open: openCapas, overdue: overdueCapas, pendingVerification: capaPendingVerif, pendingEffectiveness: capaPendingEff, closed: capaClosed },
+      // Phase 7.7 — TECPAP role-scoped workflow metrics
+      ...(isManager ? await this.managerStats(scope) : {}),
+      ...(isPilot && userId ? await this.pilotStats(scope, userId) : {}),
     };
+  }
+
+  /** Audit Manager workflow metrics: CAPAs awaiting their action. */
+  private async managerStats(scope: DataScope | undefined): Promise<Partial<DashboardStatsDto>> {
+    const capaWhere = departmentScopeWhere(scope, { deletedAt: null }) as Prisma.CapaWhereInput;
+    const [capasToVerify, capasToValidate, capasReturned] = await Promise.all([
+      this.prisma.capa.count({ where: { ...capaWhere, status: 'PENDING_VERIFICATION' } }),
+      this.prisma.capa.count({ where: { ...capaWhere, status: 'VALIDATED' } }),
+      this.prisma.capa.count({ where: { ...capaWhere, status: 'RETURNED' } }),
+    ]);
+    return { capasToVerify, capasToValidate, capasReturned };
+  }
+
+  /** Pilot workflow metrics: CAPAs requiring pilot action. */
+  private async pilotStats(scope: DataScope | undefined, userId: string): Promise<Partial<DashboardStatsDto>> {
+    const capaWhere = departmentScopeWhere(scope, { deletedAt: null, ownerId: userId }) as Prisma.CapaWhereInput;
+    const [myActionsPending, myReturnedCapas] = await Promise.all([
+      this.prisma.capa.count({ where: { ...capaWhere, status: { in: ['ASSIGNED', 'IN_PROGRESS', 'EVIDENCE_UPLOADED'] } } }),
+      this.prisma.capa.count({ where: { ...capaWhere, status: 'RETURNED' } }),
+    ]);
+    return { myActionsPending, myReturnedCapas };
   }
 }

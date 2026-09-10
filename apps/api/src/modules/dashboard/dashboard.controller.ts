@@ -11,8 +11,9 @@ export class DashboardController {
 
   @Get('stats')
   @Permissions('dashboard.read')
-  @ApiOperation({ summary: 'Quality-management dashboard KPIs' })
+  @ApiOperation({ summary: 'Quality-management dashboard KPIs (role-scoped)' })
   stats(@Req() req: Request) {
-    return this.dashboardService.stats(req.dataScope);
+    const user = req.user as { id?: string; permissions?: string[] } | undefined;
+    return this.dashboardService.stats(req.dataScope, user?.id, user?.permissions);
   }
 }

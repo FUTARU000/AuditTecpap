@@ -8,10 +8,9 @@ import { ReminderService } from './reminder.service';
 import { TaskService } from './task.service';
 import { WorkspaceService } from './workspace.service';
 import { CalendarService } from './calendar.service';
-import { FavoritesService, RecentItemsService, SubscriptionService } from './personal.services';
+import { RecentItemsService, SubscriptionService } from './personal.services';
 import {
   CalendarController,
-  FavoritesController,
   NotificationsController,
   RecentItemsController,
   RemindersController,
@@ -27,7 +26,7 @@ import {
  */
 @Module({
   imports: [PrismaModule, AuditLogModule],
-  controllers: [NotificationsController, RemindersController, TasksController, WorkspaceController, CalendarController, FavoritesController, RecentItemsController, SubscriptionsController],
+  controllers: [NotificationsController, RemindersController, TasksController, WorkspaceController, CalendarController, RecentItemsController, SubscriptionsController],
   providers: [
     { provide: EMAIL_PROVIDER, useClass: ConsoleEmailProvider },
     NotificationService,
@@ -35,7 +34,6 @@ import {
     TaskService,
     WorkspaceService,
     CalendarService,
-    FavoritesService,
     RecentItemsService,
     SubscriptionService,
   ],

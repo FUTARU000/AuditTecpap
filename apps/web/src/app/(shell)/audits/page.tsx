@@ -9,6 +9,7 @@ import { Badge, Button, Input, Label } from '@tecpap/ui';
 import { api, RequestError } from '@/lib/api';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DatePicker } from '@/components/ui/date-picker';
 import { EmptyState, ErrorState, PageHeader } from '@/components/admin/common';
 import { useTranslation } from '@/lib/i18n';
 
@@ -117,7 +118,7 @@ export default function AuditsPage() {
               <Label>Auditor</Label>
               <Select value={form.auditorId || '__none__'} onValueChange={(v) => setForm((c) => ({ ...c, auditorId: v === '__none__' ? '' : v }))}><SelectTrigger><SelectValue placeholder="—" /></SelectTrigger><SelectContent><SelectItem value="__none__">—</SelectItem>{users.map((u) => <SelectItem key={u.id} value={u.id}>{u.firstName} {u.lastName}</SelectItem>)}</SelectContent></Select>
             </div>
-            <div className="flex flex-col gap-2"><Label htmlFor="a-date">Scheduled date</Label><Input id="a-date" type="date" value={form.scheduledDate} onChange={(e) => setForm((c) => ({ ...c, scheduledDate: e.target.value }))} /></div>
+            <div className="flex flex-col gap-2"><Label htmlFor="a-date">Scheduled date</Label><DatePicker id="a-date" value={form.scheduledDate || null} minDate={new Date().toISOString().slice(0, 10)} onChange={(v) => setForm((c) => ({ ...c, scheduledDate: v ?? '' }))} placeholder="Select date (no past dates)" /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>

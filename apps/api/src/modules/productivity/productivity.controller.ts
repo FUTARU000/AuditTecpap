@@ -6,8 +6,8 @@ import { ReminderService } from './reminder.service';
 import { TaskService } from './task.service';
 import { WorkspaceService } from './workspace.service';
 import { CalendarService } from './calendar.service';
-import { FavoritesService, RecentItemsService, SubscriptionService } from './personal.services';
-import { AddFavoriteDto, RecordRecentDto, TaskActionDto, UpsertSubscriptionDto } from './dto/productivity.dto';
+import { RecentItemsService, SubscriptionService } from './personal.services';
+import { RecordRecentDto, TaskActionDto, UpsertSubscriptionDto } from './dto/productivity.dto';
 
 function uid(req: Request): string {
   return (req.user as { id?: string } | undefined)?.id ?? '';
@@ -118,18 +118,6 @@ export class CalendarController {
     const end = to ? new Date(to) : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
     return this.calendar.events(req.dataScope, start, end);
   }
-}
-
-@ApiTags('favorites')
-@Controller({ path: 'favorites', version: '1' })
-export class FavoritesController {
-  constructor(private readonly favorites: FavoritesService) {}
-
-  @Get() list(@Req() req: Request) { return this.favorites.list(uid(req)); }
-
-  @Post() add(@Body() dto: AddFavoriteDto, @Req() req: Request) { return this.favorites.add(uid(req), dto); }
-
-  @Delete(':id') async remove(@Param('id') id: string, @Req() req: Request) { await this.favorites.remove(uid(req), id); return { ok: true }; }
 }
 
 @ApiTags('recent-items')

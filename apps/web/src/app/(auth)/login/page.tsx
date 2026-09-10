@@ -33,11 +33,11 @@ function LoginForm() {
   }
 
   return (
-    <Card className="w-full max-w-sm">
+    <Card className="w-full max-w-sm border-border/60 bg-background/95 shadow-2xl backdrop-blur-sm">
       <CardContent className="p-6">
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
           <div className="flex flex-col gap-2">
-            <Label htmlFor="email">{t('common.email', 'Email')}</Label>
+            <Label htmlFor="email" className="text-foreground">{t('common.email', 'Email')}</Label>
             <Input
               id="email"
               type="email"
@@ -51,7 +51,7 @@ function LoginForm() {
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="password">{t('common.password', 'Password')}</Label>
+            <Label htmlFor="password" className="text-foreground">{t('common.password', 'Password')}</Label>
             <Input
               id="password"
               type="password"
@@ -81,19 +81,33 @@ function LoginForm() {
 export default function LoginPage() {
   const { t } = useTranslation();
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-muted px-4 py-10">
-      <div className="mb-6 flex flex-col items-center gap-3 text-center">
-        <span className="flex size-11 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-          <ClipboardCheck className="size-6" />
-        </span>
-        <div>
-          <p className="text-lg font-semibold text-foreground">{t('login.title', 'TECPAP Audit Platform')}</p>
-          <p className="text-sm text-muted-foreground">{t('login.subtitle', 'Sign in to your account')}</p>
+    <div
+      className="relative flex min-h-screen flex-col items-center justify-center px-4 py-10"
+      style={{
+        backgroundImage: 'url(/tecpap-building.jpeg)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+      }}
+    >
+      {/* Subtle dark overlay for readability — building remains recognizable */}
+      <div className="absolute inset-0 bg-foreground/50" aria-hidden="true" />
+
+      {/* Content layer above the background */}
+      <div className="relative z-10 flex w-full flex-col items-center">
+        <div className="mb-6 flex flex-col items-center gap-3 text-center">
+          <span className="flex size-11 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-lg">
+            <ClipboardCheck className="size-6" />
+          </span>
+          <div>
+            <p className="text-lg font-semibold text-white drop-shadow-md">{t('login.title', 'TECPAP Audit Platform')}</p>
+            <p className="text-sm text-white/80 drop-shadow-sm">{t('login.subtitle', 'Sign in to your account')}</p>
+          </div>
         </div>
+        <Suspense fallback={null}>
+          <LoginForm />
+        </Suspense>
       </div>
-      <Suspense fallback={null}>
-        <LoginForm />
-      </Suspense>
     </div>
   );
 }

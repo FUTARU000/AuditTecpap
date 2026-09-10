@@ -56,14 +56,32 @@ export const CONFIDENTIALITY_LABELS: Record<ConfidentialityLevel, string> = {
 /** Allowed upload extensions → MIME types. Extend here to add formats. */
 export const SUPPORTED_FILE_TYPES: Readonly<Record<string, string>> = {
   pdf: 'application/pdf',
+  doc: 'application/msword',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  xlsm: 'application/vnd.ms-excel.sheet.macroEnabled.12',
+  csv: 'text/csv',
+  ppt: 'application/vnd.ms-powerpoint',
   pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  txt: 'text/plain',
+  log: 'text/plain',
+  md: 'text/markdown',
   png: 'image/png',
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
   svg: 'image/svg+xml',
 };
+
+/** Comma-joined list of supported extensions (for error messages). */
+export const SUPPORTED_EXTENSIONS_LIST = Object.keys(SUPPORTED_FILE_TYPES).map((e) => `.${e}`).join(', ');
+
+/** Dangerous file extensions — always rejected regardless of other config. */
+export const BLOCKED_FILE_EXTENSIONS: ReadonlySet<string> = new Set([
+  'exe', 'bat', 'cmd', 'com', 'scr', 'msi', 'js', 'jse', 'vbs', 'vbe',
+  'wsf', 'wsh', 'ps1', 'sh', 'bash', 'php', 'phtml', 'asp', 'aspx',
+  'jar', 'war', 'class', 'dll', 'so', 'dylib', 'app',
+]);
 
 /** Maximum upload size (bytes) — 50 MiB. */
 export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;

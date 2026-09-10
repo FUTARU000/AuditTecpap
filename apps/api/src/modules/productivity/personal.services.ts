@@ -1,31 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { FavoriteDto, RecentItemDto, ReportSubscriptionDto } from '@tecpap/types';
+import type { RecentItemDto, ReportSubscriptionDto } from '@tecpap/types';
 import { PrismaService } from '../prisma/prisma.service';
-
-@Injectable()
-export class FavoritesService {
-  constructor(private readonly prisma: PrismaService) {}
-
-  async list(userId: string): Promise<FavoriteDto[]> {
-    const rows = await this.prisma.userFavorite.findMany({ where: { userId }, orderBy: { createdAt: 'desc' } });
-    return rows.map((f) => ({ id: f.id, entityType: f.entityType, entityId: f.entityId, label: f.label, href: f.href, icon: f.icon, createdAt: f.createdAt.toISOString() }));
-  }
-
-  async add(userId: string, input: { entityType: string; entityId: string; label: string; href: string; icon?: string }): Promise<FavoriteDto> {
-    const row = await this.prisma.userFavorite.upsert({
-      where: { userId_entityType_entityId: { userId, entityType: input.entityType, entityId: input.entityId } },
-      update: { label: input.label, href: input.href, icon: input.icon ?? null },
-      create: { userId, ...input, icon: input.icon ?? null },
-    });
-    return { id: row.id, entityType: row.entityType, entityId: row.entityId, label: row.label, href: row.href, icon: row.icon, createdAt: row.createdAt.toISOString() };
-  }
-
-  async remove(userId: string, id: string): Promise<void> {
-    const f = await this.prisma.userFavorite.findUnique({ where: { id }, select: { userId: true } });
-    if (!f || f.userId !== userId) throw new NotFoundException('Favorite not found');
-    await this.prisma.userFavorite.delete({ where: { id } });
-  }
-}
 
 @Injectable()
 export class RecentItemsService {

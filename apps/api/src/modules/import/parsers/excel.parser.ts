@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Workbook } from 'exceljs';
 import { WORKBOOK_PURPOSES } from '@tecpap/config';
-import type { DocumentParser, ImportFileInput, ParsedDocument, ParsedTemplateQuestion, ParsedTemplateSection } from '../interfaces/document-parser.interface';
+import type { DocumentParser, ImportFileInput, ParsedDocument, ParsedTemplateQuestion, ParsedTemplateSection, SheetData } from '../interfaces/document-parser.interface';
 import { excerpt, extractDocumentCode, extractKeywords, titleFromName } from './parsers.util';
 
 const HEADER_QUESTION = /question|item|check|criteria|point|requirement|contrôl|exigence/i;
@@ -60,15 +60,24 @@ export class ExcelParser implements DocumentParser {
     const haystack: string[] = [];
     let imageCount = 0;
     const flat: string[] = [];
+    const sheets: SheetData[] = [];
+    const MAX_ROWS = 500;
+    const MAX_COLS = 50;
 
     for (const ws of wb.worksheets) {
       haystack.push(ws.name);
       imageCount += (ws as unknown as { getImages?: () => unknown[] }).getImages?.()?.length ?? 0;
+      const sheetRows: string[][] = [];
+      const sheetFlat: string[] = [];
       ws.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-        const values = row.cellCount ? Array.from({ length: row.cellCount }, (_, i) => cellText(row.getCell(i + 1).value)) : [];
+        const colCount = Math.min(row.cellCount, MAX_COLS);
+        const values = colCount > 0 ? Array.from({ length: colCount }, (_, i) => cellText(row.getCell(i + 1).value)) : [];
         if (rowNumber <= 2) haystack.push(...values);
-        flat.push(values.join(' '));
+        sheetFlat.push(values.join(' '));
+        if (sheetRows.length < MAX_ROWS) sheetRows.push(values);
       });
+      flat.push(...sheetFlat);
+      sheets.push({ name: ws.name, rows: sheetRows, columnCount: Math.min(ws.columnCount, MAX_COLS), rowCount: ws.rowCount });
     }
 
     const text = flat.join('\n');
@@ -88,6 +97,7 @@ export class ExcelParser implements DocumentParser {
       tableCount: wb.worksheets.length,
       imageCount,
       keywords,
+      sheets,
       workbookPurpose: purpose,
       sections,
       metadata: {

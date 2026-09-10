@@ -81,7 +81,14 @@ export default function TemplateDetailPage() {
                   <li key={question.id} className="flex items-start justify-between gap-2 rounded-md border border-border p-3 text-sm">
                     <div>
                       <p className="font-medium text-foreground">{question.text}{question.required ? <span className="ml-1 text-destructive">*</span> : null}</p>
-                      <p className="text-xs text-muted-foreground">{QUESTION_TYPE_LABELS[question.type as QuestionType]}{question.evidenceRequired ? ' · evidence required' : ''}{question.findingRequired ? ' · finding required' : ''}</p>
+                      <p className="text-xs text-muted-foreground">{QUESTION_TYPE_LABELS[question.type as QuestionType]}{question.evidenceRequired ? ' · evidence required' : ''}{question.findingRequired ? ' · finding required' : ''}{question.weight && question.weight !== 1 ? ` · ×${question.weight}` : ''}</p>
+                      {question.options && question.options.length > 0 ? (
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {question.options.map((opt, oi) => (
+                            <span key={oi} className="rounded-full border border-border bg-muted/40 px-2 py-0.5 text-xs text-muted-foreground">{opt}</span>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                     {question.required ? <CheckCircle2 className="size-4 text-muted-foreground" /> : null}
                   </li>

@@ -34,6 +34,38 @@ export interface ParsedTemplateSection {
   questions: ParsedTemplateQuestion[];
 }
 
+/** Structured worksheet data for enterprise Excel rendering. */
+export interface SheetData {
+  name: string;
+  rows: string[][];
+  columnCount: number;
+  rowCount: number;
+}
+
+/** A bullet/paragraph with its indentation level (0 = top, 1 = indented, etc.). */
+export interface SlideBullet {
+  text: string;
+  level: number;
+}
+
+/** An image extracted from a PPTX slide. */
+export interface SlideImage {
+  filename: string;
+  mimeType: string;
+  dataUrl: string;
+}
+
+/** Structured slide data for enterprise PowerPoint rendering. */
+export interface SlideData {
+  index: number;
+  title: string;
+  subtitle?: string;
+  bullets: SlideBullet[];
+  notes: string;
+  images: SlideImage[];
+  omittedObjects: string[];
+}
+
 /** Structured result of parsing a single file into enterprise knowledge. */
 export interface ParsedDocument {
   title: string;
@@ -58,6 +90,12 @@ export interface ParsedDocument {
   workbookPurpose?: string;
   /** Sections/questions when the workbook is an audit checklist. */
   sections?: ParsedTemplateSection[];
+  /** Mammoth HTML output for Word documents (enterprise rendering). */
+  html?: string;
+  /** Per-sheet structured data for Excel (enterprise grid rendering). */
+  sheets?: SheetData[];
+  /** Per-slide structured data for PowerPoint (enterprise slide rendering). */
+  slides?: SlideData[];
 }
 
 export interface DocumentParser {

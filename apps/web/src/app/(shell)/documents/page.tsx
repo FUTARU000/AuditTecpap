@@ -1,22 +1,21 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { FolderTree, Loader2, PlusCircle, Search } from 'lucide-react';
+import { CalendarClock, Loader2, PlusCircle, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
 import type {
   DepartmentDto,
   DocumentCategoryDto,
   DocumentDto,
   DocumentStatus,
-  DocumentTreeNode,
   PaginatedResult,
-  ProcessDto,
 } from '@tecpap/types';
 import { Badge, Button, Input, Label } from '@tecpap/ui';
 import { api, RequestError } from '@/lib/api';
 import { useAsync } from '@/lib/use-async';
-import { DocumentTree, type TreeSelection } from '@/components/documents/document-tree';
+import { useAuth } from '@/lib/auth-context';
 import {
   Dialog,
   DialogContent,
@@ -33,7 +32,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { EmptyState, ErrorState, PageHeader, TableSkeleton } from '@/components/admin/common';
+import { DatePicker } from '@/components/ui/date-picker';
+import { ErrorState, PageHeader, TableSkeleton } from '@/components/admin/common';
 
 const STATUS_TONE: Record<DocumentStatus, 'default' | 'secondary' | 'success' | 'warning' | 'danger' | 'outline'> = {
   DRAFT: 'secondary',
@@ -44,30 +44,68 @@ const STATUS_TONE: Record<DocumentStatus, 'default' | 'secondary' | 'success' | 
   ARCHIVED: 'outline',
 };
 
+const STATUS_OPTIONS: DocumentStatus[] = ['DRAFT', 'UNDER_REVIEW', 'APPROVED', 'PUBLISHED', 'OBSOLETE', 'ARCHIVED'];
+const EXPIRY_OPTIONS = [
+  { value: 'ALL', label: 'All' },
+  { value: 'EXPIRING_SOON', label: 'Expiring soon' },
+  { value: 'EXPIRED', label: 'Expired' },
+  { value: 'NO_EXPIRY', label: 'No expiry' },
+] as const;
+
+const DAY_MS = 24 * 3600_000;
+
 interface CreateForm {
   title: string;
   code: string;
   description: string;
   departmentId: string;
-  processId: string;
   categoryId: string;
   keywords: string;
+  effectiveDate: string;
+  expirationDate: string;
+}
+
+interface FilterState {
+  search: string;
+  departmentId: string;
+  categoryId: string;
+  status: string;
+  expiry: string;
+}
+
+const DEFAULT_FILTERS: FilterState = { search: '', departmentId: '', categoryId: '', status: '', expiry: '' };
+
+function isExpiringSoon(doc: DocumentDto): boolean {
+  if (!doc.expirationDate) return false;
+  const d = new Date(doc.expirationDate).getTime();
+  return d > Date.now() && d < Date.now() + 90 * DAY_MS;
+}
+function isExpired(doc: DocumentDto): boolean {
+  if (!doc.expirationDate) return false;
+  return new Date(doc.expirationDate).getTime() < Date.now();
 }
 
 export default function DocumentsPage() {
-  const { data: tree, error: treeError, reload: reloadTree } = useAsync<DocumentTreeNode[]>(() => api.get('/documents/tree'));
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { user, hasPermission } = useAuth();
+  const isManager = hasPermission('documents.approve');
   const { data: categories } = useAsync<DocumentCategoryDto[]>(() => api.get('/document-categories/active'));
 
-  const [selection, setSelection] = useState<TreeSelection | null>(null);
-  const [search, setSearch] = useState('');
+  const [filters, setFilters] = useState<FilterState>(() => ({
+    search: searchParams.get('q') ?? '',
+    departmentId: searchParams.get('departmentId') ?? '',
+    categoryId: searchParams.get('categoryId') ?? '',
+    status: searchParams.get('status') ?? '',
+    expiry: searchParams.get('expiry') ?? '',
+  }));
   const [documents, setDocuments] = useState<PaginatedResult<DocumentDto> | null>(null);
   const [loadingDocs, setLoadingDocs] = useState(true);
   const [docsError, setDocsError] = useState<string | null>(null);
+  const [departments, setDepartments] = useState<DepartmentDto[]>([]);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<CreateForm | null>(null);
-  const [departments, setDepartments] = useState<DepartmentDto[]>([]);
-  const [processes, setProcesses] = useState<ProcessDto[]>([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -79,50 +117,66 @@ export default function DocumentsPage() {
     setDocsError(null);
     try {
       const params: Record<string, string | number | undefined> = { pageSize: 50 };
-      if (selection?.departmentId) params.departmentId = selection.departmentId;
-      if (selection?.processId) params.processId = selection.processId;
-      if (selection?.categoryId) params.categoryId = selection.categoryId;
-      const trimmed = search.trim();
+      const trimmed = filters.search.trim();
       if (trimmed) params.search = trimmed;
+      if (filters.departmentId) params.departmentId = filters.departmentId;
+      if (filters.categoryId) params.categoryId = filters.categoryId;
+      if (filters.status) params.status = filters.status;
       const result = await api.get<PaginatedResult<DocumentDto>>('/documents', params);
-      setDocuments(result);
+      // Client-side expiry filter (backend doesn't have this filter yet)
+      let items = result.items;
+      if (filters.expiry === 'EXPIRING_SOON') items = items.filter(isExpiringSoon);
+      else if (filters.expiry === 'EXPIRED') items = items.filter(isExpired);
+      else if (filters.expiry === 'NO_EXPIRY') items = items.filter((d) => !d.expirationDate);
+      setDocuments({ ...result, items });
     } catch (err) {
       setDocsError(err instanceof RequestError ? err.message : 'Failed to load documents.');
     } finally {
       setLoadingDocs(false);
     }
-  }, [selection, search]);
+  }, [filters]);
 
   useEffect(() => {
     void fetchDocuments();
-  }, [fetchDocuments]);
+    // Persist filters in URL
+    const params = new URLSearchParams();
+    if (filters.search) params.set('q', filters.search);
+    if (filters.departmentId) params.set('departmentId', filters.departmentId);
+    if (filters.categoryId) params.set('categoryId', filters.categoryId);
+    if (filters.status) params.set('status', filters.status);
+    if (filters.expiry) params.set('expiry', filters.expiry);
+    const qs = params.toString();
+    router.replace(qs ? `/documents?${qs}` : '/documents', { scroll: false });
+  }, [fetchDocuments, filters, router]);
+
+  function clearFilters() {
+    setFilters(DEFAULT_FILTERS);
+  }
+
+  const hasActiveFilters = filters.search || filters.departmentId || filters.categoryId || filters.status || filters.expiry;
 
   function openCreate() {
+    // Pilot: department auto-assigned to their own, not changeable
+    const pilotDeptId = !isManager && user?.departmentId ? user.departmentId : '';
     setForm({
       title: '',
       code: '',
       description: '',
-      departmentId: selection?.departmentId ?? departments[0]?.id ?? '',
-      processId: selection?.processId ?? '',
+      departmentId: pilotDeptId || (departments[0]?.id ?? ''),
       categoryId: categories?.[0]?.id ?? '',
       keywords: '',
+      effectiveDate: '',
+      expirationDate: '',
     });
     setDialogOpen(true);
   }
 
-  // Load processes for the selected department in the create form.
-  useEffect(() => {
-    if (!form?.departmentId) {
-      setProcesses([]);
-      return;
-    }
-    api.get<PaginatedResult<ProcessDto>>('/processes', { pageSize: 100, departmentId: form.departmentId })
-      .then((result) => setProcesses(result.items))
-      .catch(() => setProcesses([]));
-  }, [form?.departmentId]);
-
   async function save() {
     if (!form) return;
+    if (form.effectiveDate && form.expirationDate && new Date(form.expirationDate) < new Date(form.effectiveDate)) {
+      toast.error('Expiry date must be on or after the effective date.');
+      return;
+    }
     setSaving(true);
     try {
       await api.post<DocumentDto>('/documents', {
@@ -130,13 +184,14 @@ export default function DocumentsPage() {
         code: form.code,
         description: form.description || null,
         departmentId: form.departmentId,
-        processId: form.processId || null,
         categoryId: form.categoryId,
         keywords: form.keywords ? form.keywords.split(',').map((keyword) => keyword.trim()).filter(Boolean) : [],
+        effectiveDate: form.effectiveDate || null,
+        expirationDate: form.expirationDate || null,
       });
       toast.success('Document created');
       setDialogOpen(false);
-      await Promise.all([fetchDocuments(), reloadTree()]);
+      await fetchDocuments();
     } catch (err) {
       toast.error(err instanceof RequestError ? err.message : 'Could not create document.');
     } finally {
@@ -144,14 +199,22 @@ export default function DocumentsPage() {
     }
   }
 
-  const total = documents?.total ?? 0;
-  const headerLabel = useMemo(() => selection?.label ?? 'All documents', [selection]);
+  const deptName = (id: string) => departments.find((d) => d.id === id)?.name ?? id;
+  const catName = (id: string) => (categories ?? []).find((c) => c.id === id)?.name ?? id;
+  const expiryLabel = EXPIRY_OPTIONS.find((o) => o.value === filters.expiry)?.label ?? '';
+  const activeChips = [
+    filters.search ? { key: 'search', label: `"${filters.search}"` } : null,
+    filters.departmentId ? { key: 'departmentId', label: deptName(filters.departmentId) } : null,
+    filters.categoryId ? { key: 'categoryId', label: catName(filters.categoryId) } : null,
+    filters.status ? { key: 'status', label: filters.status } : null,
+    filters.expiry !== 'ALL' && filters.expiry ? { key: 'expiry', label: expiryLabel } : null,
+  ].filter(Boolean) as Array<{ key: string; label: string }>;
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
       <PageHeader
         title="Documents"
-        description="Controlled documents organized by department, process and category."
+        description="Controlled documents organized by department and category."
         action={
           <Button onClick={openCreate}>
             <PlusCircle className="size-4" /> New document
@@ -159,71 +222,116 @@ export default function DocumentsPage() {
         }
       />
 
-      <div className="grid gap-6 lg:grid-cols-[18rem_1fr]">
-        <aside className="rounded-lg border border-border bg-card p-3 lg:max-h-[70vh] lg:overflow-y-auto scrollbar-thin">
-          <div className="mb-2 flex items-center gap-2 px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            <FolderTree className="size-4" /> Library
-          </div>
-          {treeError ? (
-            <button className="px-2 text-xs text-destructive underline" onClick={reloadTree}>Reload tree</button>
-          ) : !tree ? (
-            <div className="space-y-2 px-2">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-5 animate-pulse rounded bg-muted" />)}</div>
-          ) : (
-            <DocumentTree nodes={tree} selection={selection} onSelect={(next) => setSelection((current) => (current?.label === next.label ? null : next))} />
-          )}
-        </aside>
-
-        <section className="flex flex-col gap-4">
-          <div className="relative">
+      {/* Enterprise filter bar */}
+      <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder={`Search in "${headerLabel}"…`} value={search} onChange={(event) => setSearch(event.target.value)} className="pl-8" />
+            <Input placeholder="Search by name or code…" value={filters.search} onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))} className="pl-8" />
           </div>
-
-          <div className="overflow-hidden rounded-lg border border-border bg-card">
-            {docsError ? (
-              <ErrorState message={docsError} onRetry={() => void fetchDocuments()} />
-            ) : loadingDocs ? (
-              <TableSkeleton columns={4} />
-            ) : documents && documents.items.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="border-b border-border bg-muted/50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Title</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Code</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Category</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Version</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {documents.items.map((doc) => (
-                      <tr key={doc.id} className="hover:bg-accent/40">
-                        <td className="px-4 py-3">
-                          <Link href={`/documents/${doc.id}`} className="font-medium text-foreground hover:underline">{doc.title}</Link>
-                          {doc.processName ? <div className="text-xs text-muted-foreground">{doc.processName}</div> : null}
-                        </td>
-                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{doc.code}</td>
-                        <td className="px-4 py-3">
-                          <span className="inline-flex items-center gap-1.5">
-                            <span className="size-2 rounded-full" style={{ backgroundColor: doc.categoryColor ?? '#948877' }} />
-                            {doc.categoryName}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{doc.version}</td>
-                        <td className="px-4 py-3"><Badge variant={STATUS_TONE[doc.status]}>{doc.status}</Badge></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <EmptyState title="No documents here" description={`${total} document(s). Create one or pick another node in the tree.`} />
-            )}
+          <Select value={filters.departmentId || 'ALL'} onValueChange={(v) => setFilters((f) => ({ ...f, departmentId: v === 'ALL' ? '' : v }))}>
+            <SelectTrigger className="sm:w-40"><SelectValue placeholder="Department" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All departments</SelectItem>
+              {departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={filters.categoryId || 'ALL'} onValueChange={(v) => setFilters((f) => ({ ...f, categoryId: v === 'ALL' ? '' : v }))}>
+            <SelectTrigger className="sm:w-36"><SelectValue placeholder="Category" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All categories</SelectItem>
+              {(categories ?? []).map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={filters.status || 'ALL'} onValueChange={(v) => setFilters((f) => ({ ...f, status: v === 'ALL' ? '' : v }))}>
+            <SelectTrigger className="sm:w-36"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All statuses</SelectItem>
+              {STATUS_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={filters.expiry || 'ALL'} onValueChange={(v) => setFilters((f) => ({ ...f, expiry: v === 'ALL' ? '' : v }))}>
+            <SelectTrigger className="sm:w-36"><SelectValue placeholder="Expiry" /></SelectTrigger>
+            <SelectContent>
+              {EXPIRY_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        {/* Filter chips */}
+        {activeChips.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {activeChips.map((chip) => (
+              <button key={chip.key} type="button" onClick={() => setFilters((f) => ({ ...f, [chip.key]: chip.key === 'expiry' ? '' : '' }))} className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/50 px-2.5 py-0.5 text-xs text-foreground hover:bg-accent">
+                {chip.label} <X className="size-3 text-muted-foreground" />
+              </button>
+            ))}
+            <button type="button" onClick={clearFilters} className="ml-1 text-xs font-medium text-primary hover:underline">Clear all</button>
           </div>
-        </section>
+        ) : null}
       </div>
 
+      {/* Table */}
+      <div className="overflow-hidden rounded-lg border border-border bg-card">
+        {docsError ? (
+          <ErrorState message={docsError} onRetry={() => void fetchDocuments()} />
+        ) : loadingDocs ? (
+          <TableSkeleton columns={7} />
+        ) : documents && documents.items.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b border-border bg-muted/50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Title</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Code</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Department</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Category</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Effective</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Expiry</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {documents.items.map((doc) => (
+                  <tr key={doc.id} className="hover:bg-accent/40">
+                    <td className="px-4 py-3">
+                      <Link href={`/documents/${doc.id}`} className="font-medium text-foreground hover:underline">{doc.title}</Link>
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{doc.code}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{doc.departmentName ?? '—'}</td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="size-2 rounded-full" style={{ backgroundColor: doc.categoryColor ?? '#948877' }} />
+                        {doc.categoryName}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">{doc.effectiveDate ? new Date(doc.effectiveDate).toLocaleDateString() : '—'}</td>
+                    <td className="px-4 py-3 text-xs">
+                      {doc.expirationDate ? (
+                        <span className={`inline-flex items-center gap-1 ${isExpired(doc) ? 'font-medium text-destructive' : isExpiringSoon(doc) ? 'font-medium text-warning' : 'text-muted-foreground'}`}>
+                          <CalendarClock className="size-3" /> {new Date(doc.expirationDate).toLocaleDateString()}
+                        </span>
+                      ) : <span className="text-muted-foreground/50">—</span>}
+                    </td>
+                    <td className="px-4 py-3"><Badge variant={STATUS_TONE[doc.status]}>{doc.status}</Badge></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center gap-3 p-12 text-center">
+            <p className="text-sm font-medium text-foreground">
+              {hasActiveFilters ? 'No documents match your current filters.' : 'No documents yet'}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {hasActiveFilters ? 'Try adjusting or clearing the filters above.' : `${documents?.total ?? 0} document(s). Create one to get started.`}
+            </p>
+            {hasActiveFilters ? <Button variant="outline" size="sm" onClick={clearFilters}>Clear Filters</Button> : null}
+          </div>
+        )}
+      </div>
+
+      {/* Create dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -241,22 +349,24 @@ export default function DocumentsPage() {
                   <SelectContent>{(categories ?? []).map((category) => <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div className="flex flex-col gap-2">
-                <Label>Department</Label>
-                <Select value={form.departmentId} onValueChange={(value) => setForm((current) => current && ({ ...current, departmentId: value, processId: '' }))}>
-                  <SelectTrigger><SelectValue placeholder="Department" /></SelectTrigger>
-                  <SelectContent>{departments.map((department) => <SelectItem key={department.id} value={department.id}>{department.name}</SelectItem>)}</SelectContent>
-                </Select>
+              <div className="flex flex-col gap-2 sm:col-span-2">
+                <Label>Department {!isManager && user?.departmentId ? <span className="text-xs text-muted-foreground">(auto-assigned)</span> : null}</Label>
+                {isManager ? (
+                  <Select value={form.departmentId} onValueChange={(value) => setForm((current) => current && ({ ...current, departmentId: value }))}>
+                    <SelectTrigger><SelectValue placeholder="Department" /></SelectTrigger>
+                    <SelectContent>{departments.map((department) => <SelectItem key={department.id} value={department.id}>{department.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                ) : (
+                  <Input value={departments.find((d) => d.id === form.departmentId)?.name ?? form.departmentId} disabled />
+                )}
               </div>
               <div className="flex flex-col gap-2">
-                <Label>Process (optional)</Label>
-                <Select value={form.processId || '__none__'} onValueChange={(value) => setForm((current) => current && ({ ...current, processId: value === '__none__' ? '' : value }))}>
-                  <SelectTrigger><SelectValue placeholder="No process" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">No process</SelectItem>
-                    {processes.map((process) => <SelectItem key={process.id} value={process.id}>{process.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="effectiveDate">Effective Date <span className="text-xs text-muted-foreground">(optional)</span></Label>
+                <DatePicker id="effectiveDate" value={form.effectiveDate || null} onChange={(v) => setForm((current) => current && ({ ...current, effectiveDate: v ?? '' }))} placeholder="Select effective date" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="expirationDate">Expiry Date <span className="text-xs text-muted-foreground">(optional — empty = never expires)</span></Label>
+                <DatePicker id="expirationDate" value={form.expirationDate || null} minDate={form.effectiveDate || null} onChange={(v) => setForm((current) => current && ({ ...current, expirationDate: v ?? '' }))} placeholder="Select expiry date" />
               </div>
               <div className="flex flex-col gap-2 sm:col-span-2"><Label htmlFor="keywords">Keywords (comma-separated)</Label><Input id="keywords" value={form.keywords} onChange={(event) => setForm((current) => current && ({ ...current, keywords: event.target.value }))} /></div>
               <div className="flex flex-col gap-2 sm:col-span-2"><Label htmlFor="desc">Description</Label><Textarea id="desc" value={form.description} onChange={(event) => setForm((current) => current && ({ ...current, description: event.target.value }))} /></div>

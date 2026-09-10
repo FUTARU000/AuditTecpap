@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { MAX_UPLOAD_BYTES, SUPPORTED_FILE_TYPES } from '@tecpap/config';
+import { BLOCKED_FILE_EXTENSIONS, MAX_UPLOAD_BYTES, SUPPORTED_EXTENSIONS_LIST, SUPPORTED_FILE_TYPES } from '@tecpap/config';
 import { AUDIT_ACTIONS, type DocumentVersionDto } from '@tecpap/types';
 import { createHash, randomUUID } from 'crypto';
 import type { ActorContext } from '../../common/context/actor';
@@ -50,8 +50,13 @@ export class DocumentVersionsService {
     }
 
     const extension = file.originalname.split('.').pop()?.toLowerCase() ?? '';
+    if (BLOCKED_FILE_EXTENSIONS.has(extension)) {
+      throw new BadRequestException(`File type ".${extension}" is blocked for security reasons.`);
+    }
     if (!SUPPORTED_FILE_TYPES[extension]) {
-      throw new BadRequestException(`Unsupported file type: .${extension}`);
+      throw new BadRequestException(
+        `File type ".${extension}" is not supported. Allowed types: ${SUPPORTED_EXTENSIONS_LIST}.`,
+      );
     }
     if (file.size > MAX_UPLOAD_BYTES) {
       throw new BadRequestException(`File exceeds the ${MAX_UPLOAD_BYTES / (1024 * 1024)} MiB limit`);

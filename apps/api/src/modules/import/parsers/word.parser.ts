@@ -29,9 +29,10 @@ export class WordParser implements DocumentParser {
     });
 
     let tableCount = 0;
+    let html = '';
     const headings: string[] = [];
     try {
-      const html = await mammoth.convertToHtml({ buffer: input.buffer }).then((r) => r.value);
+      html = await mammoth.convertToHtml({ buffer: input.buffer }).then((r) => r.value);
       tableCount = (html.match(/<table/g) ?? []).length;
       for (const m of html.matchAll(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/g)) {
         const h = (m[2] ?? '').replace(/<[^>]+>/g, '').trim();
@@ -59,6 +60,7 @@ export class WordParser implements DocumentParser {
       tableCount,
       headings,
       keywords,
+      html: html || undefined,
       metadata: { source: 'word', coreProps: core ?? {}, modified: core?.modified, created: core?.created },
     };
   }

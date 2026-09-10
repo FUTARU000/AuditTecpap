@@ -1,11 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import {
   CheckCircle2,
   Download,
+  Eye,
   FileText,
+  GitCompare,
   Loader2,
   PlusCircle,
   Send,
@@ -197,6 +200,8 @@ export default function DocumentDetailPage() {
           <p className="font-mono text-sm text-muted-foreground">{doc.code} · v{doc.version}</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Link href={`/documents/${id}/viewer`} className="inline-flex h-8 items-center gap-1 rounded-md border border-input bg-background px-3 text-sm hover:bg-accent"><Eye className="size-4" /> Viewer</Link>
+          <Link href={`/documents/${id}/compare`} className="inline-flex h-8 items-center gap-1 rounded-md border border-input bg-background px-3 text-sm hover:bg-accent"><GitCompare className="size-4" /> Compare</Link>
           {nextActions.map((action) => (
             <Button key={action.status} size="sm" onClick={() => void changeStatus(action.status)}>
               {action.status === 'UNDER_REVIEW' ? <Send className="size-4" /> : action.status === 'APPROVED' ? <CheckCircle2 className="size-4" /> : action.status === 'PUBLISHED' ? <ShieldCheck className="size-4" /> : <X className="size-4" />}
@@ -213,7 +218,6 @@ export default function DocumentDetailPage() {
             <h3 className="mb-3 text-sm font-semibold text-foreground">Metadata</h3>
             <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
               <Field label="Department" value={doc.departmentName} />
-              <Field label="Process" value={doc.processName ?? '—'} />
               <Field label="Category" value={doc.categoryName} />
               <Field label="Owner" value={doc.ownerName ?? '—'} />
               <Field label="Reviewer" value={doc.reviewerName ?? '—'} />
