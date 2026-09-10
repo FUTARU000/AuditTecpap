@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { LoginDto, UserDto } from '@tecpap/types';
-import { api, clearTokens, getAccessToken, getRefreshToken, setTokens } from '@/lib/api';
+import { api, clearTokens, getAccessToken, getRefreshToken, invalidateSession, setTokens } from '@/lib/api';
 
 interface AuthState {
   user: UserDto | null;
@@ -42,10 +42,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setState({ user: null, permissions: [], loading: false });
       return;
     }
-    const permissions = decodePermissions(token);
     api
       .get<UserDto>('/auth/me')
-      .then((user) => setState({ user, permissions, loading: false }))
+      .then((user) => {
+        // Re-read the access token: if it had expired, the API client already
+        // silently refreshed it while servicing this call, so the current
+        // token (not the one captured before the request) reflects reality.
+        const currentToken = getAccessToken();
+        setState({ user, permissions: currentToken ? decodePermissions(currentToken) : [], loading: false });
+      })
       .catch(() => setState({ user: null, permissions: [], loading: false }));
   }, []);
 
@@ -57,6 +62,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async (): Promise<void> => {
+    // Invalidate first: if a refresh is already in flight for some other
+    // request, its result must be discarded rather than silently
+    // re-populating tokens after this logout clears them.
+    invalidateSession();
     const refreshToken = getRefreshToken();
     if (refreshToken) {
       await api.post('/auth/logout', { refreshToken }).catch(() => undefined);

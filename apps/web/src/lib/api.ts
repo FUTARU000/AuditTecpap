@@ -41,7 +41,67 @@ interface RequestOptions extends Omit<RequestInit, 'body'> {
   query?: Record<string, string | number | undefined | null>;
 }
 
-async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+/** Endpoints that must never trigger the refresh/retry dance on a 401 of their own. */
+const AUTH_ENDPOINTS = new Set(['/auth/login', '/auth/refresh']);
+
+function handleAuthFailure(): void {
+  clearTokens();
+  if (isBrowser && !window.location.pathname.startsWith('/login')) {
+    window.location.href = '/login';
+  }
+}
+
+let refreshPromise: Promise<string | null> | null = null;
+/** Bumped on logout so a refresh already in flight can't resurrect a session afterwards. */
+let sessionEpoch = 0;
+
+/** Call on logout: discards the effect of any refresh that resolves after this point. */
+export function invalidateSession(): void {
+  sessionEpoch += 1;
+}
+
+/**
+ * Raw refresh call — deliberately bypasses `request()` so it can never
+ * re-enter the 401/retry logic below (the refresh endpoint is public and
+ * carries no Authorization header of its own).
+ */
+async function performRefresh(): Promise<string | null> {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return null;
+  const epochAtStart = sessionEpoch;
+  try {
+    const response = await fetch(new URL(`${API_PREFIX}/auth/refresh`, BASE_URL).toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    });
+    if (!response.ok) return null;
+    const data = (await response.json()) as { accessToken: string; refreshToken: string; expiresIn: number };
+    if (sessionEpoch !== epochAtStart) return null; // logged out while this refresh was in flight
+    setTokens(data.accessToken, data.refreshToken);
+    return data.accessToken;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Shared refresh mutex. Every 401 handler calls this; the first caller starts
+ * the refresh and every concurrent caller awaits the SAME promise instead of
+ * firing its own request — required both to avoid a refresh stampede and
+ * because the backend rotates (single-uses) the refresh token, so a second
+ * concurrent call with the same token would fail.
+ */
+function refreshAccessToken(): Promise<string | null> {
+  if (!refreshPromise) {
+    refreshPromise = performRefresh().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+}
+
+async function request<T>(path: string, options: RequestOptions = {}, isRetry = false): Promise<T> {
   const { body, query, headers, ...rest } = options;
   const url = new URL(`${API_PREFIX}${path}`, BASE_URL);
   if (query) {
@@ -64,11 +124,15 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 
-  if (response.status === 401) {
-    clearTokens();
-    if (isBrowser && !window.location.pathname.startsWith('/login')) {
-      window.location.href = '/login';
+  if (response.status === 401 && !AUTH_ENDPOINTS.has(path)) {
+    if (!isRetry) {
+      const refreshedToken = await refreshAccessToken();
+      if (refreshedToken) {
+        return request<T>(path, options, true);
+      }
     }
+    // Either this was already a retry, or no refresh was possible — final failure.
+    handleAuthFailure();
   }
 
   const text = await response.text();
@@ -90,7 +154,7 @@ export const api = {
 };
 
 /** Upload multipart form data (e.g. a document file). */
-export async function uploadFile<T>(path: string, formData: FormData): Promise<T> {
+export async function uploadFile<T>(path: string, formData: FormData, isRetry = false): Promise<T> {
   const url = new URL(`${API_PREFIX}${path}`, BASE_URL);
   const headers: Record<string, string> = {};
   const access = getAccessToken();
@@ -99,11 +163,14 @@ export async function uploadFile<T>(path: string, formData: FormData): Promise<T
   }
   const response = await fetch(url.toString(), { method: 'POST', headers, body: formData });
 
-  if (response.status === 401 && isBrowser) {
-    clearTokens();
-    if (!window.location.pathname.startsWith('/login')) {
-      window.location.href = '/login';
+  if (response.status === 401) {
+    if (!isRetry) {
+      const refreshedToken = await refreshAccessToken();
+      if (refreshedToken) {
+        return uploadFile<T>(path, formData, true);
+      }
     }
+    handleAuthFailure();
   }
 
   const text = await response.text();
