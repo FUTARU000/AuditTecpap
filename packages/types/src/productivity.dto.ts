@@ -19,12 +19,17 @@ export type NotificationType =
   | 'CAPA_DUE'
   | 'CAPA_OVERDUE'
   | 'CAPA_COMPLETED'
+  | 'CAPA_RETURNED'
+  | 'CAPA_VERIFIED'
+  | 'CAPA_VALIDATED'
   | 'RISK_CREATED'
   | 'RISK_SCORE_INCREASED'
   | 'KPI_THRESHOLD_EXCEEDED'
   | 'CERTIFICATE_EXPIRING'
   | 'IMPORT_COMPLETED'
   | 'IMPORT_REQUIRES_REVIEW'
+  | 'COMMENT_MENTION'
+  | 'DOCUMENT_ACKNOWLEDGEMENT_PENDING'
   | 'SYSTEM';
 
 export interface NotificationDto {
@@ -32,8 +37,11 @@ export interface NotificationDto {
   type: string;
   category: string;
   severity: NotificationSeverity;
+  /** English fallback — always populated. Prefer `type` + `params` to render the active locale; fall back to this when `params` is null. */
   title: string;
   message: string;
+  /** Phase 5 — structured interpolation params for the shared notification template catalog (@tecpap/config). Null on legacy notifications and on types with no template. */
+  params: Record<string, string | number | boolean> | null;
   entityType: string | null;
   entityId: string | null;
   actionUrl: string | null;
@@ -67,16 +75,6 @@ export interface UserTaskDto {
   href: string | null;
   completed: boolean;
   dismissed: boolean;
-  createdAt: string;
-}
-
-export interface FavoriteDto {
-  id: string;
-  entityType: string;
-  entityId: string;
-  label: string;
-  href: string;
-  icon: string | null;
   createdAt: string;
 }
 

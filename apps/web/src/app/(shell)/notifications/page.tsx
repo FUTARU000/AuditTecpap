@@ -7,13 +7,14 @@ import { Badge, Button } from '@tecpap/ui';
 import { cn } from '@tecpap/ui';
 import { api, RequestError } from '@/lib/api';
 import { useTranslation } from '@/lib/i18n';
+import { resolveNotificationText } from '@/lib/notifications';
 import { EmptyState, ErrorState, PageHeader } from '@/components/admin/common';
 
 type Tab = 'all' | 'unread' | 'archived';
 const SEVERITY: Record<string, 'secondary' | 'success' | 'warning' | 'danger'> = { INFO: 'secondary', SUCCESS: 'success', WARNING: 'warning', CRITICAL: 'danger' };
 
 export default function NotificationsPage() {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const [tab, setTab] = useState<Tab>('unread');
   const [data, setData] = useState<PaginatedResult<NotificationDto> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -63,21 +64,24 @@ export default function NotificationsPage() {
         <EmptyState title={t('productivity.no_notifications')} />
       ) : (
         <ul className="flex flex-col gap-2">
-          {items.map((n) => (
-            <li key={n.id} className="flex items-start gap-3 rounded-lg border border-border bg-card p-3">
-              <Badge variant={SEVERITY[n.severity] ?? 'secondary'} className="mt-0.5 shrink-0 text-[10px] uppercase">{n.severity}</Badge>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-foreground">{n.title}</p>
-                <p className="text-xs text-muted-foreground">{n.message}</p>
-                <p className="mt-0.5 text-[10px] text-muted-foreground">{new Date(n.createdAt).toLocaleString()}</p>
-              </div>
-              <div className="flex shrink-0 gap-1">
-                {!n.readAt && tab !== 'archived' ? <Button size="icon" variant="ghost" className="size-7" onClick={() => void act(n.id, 'read')} aria-label="Read"><CheckCheck className="size-3.5" /></Button> : null}
-                {tab !== 'archived' ? <Button size="icon" variant="ghost" className="size-7" onClick={() => void act(n.id, 'archive')} aria-label="Archive"><Archive className="size-3.5" /></Button> : null}
-                <Button size="icon" variant="ghost" className="size-7" onClick={() => void act(n.id, 'delete')} aria-label="Delete"><Trash2 className="size-3.5" /></Button>
-              </div>
-            </li>
-          ))}
+          {items.map((n) => {
+            const { title, message } = resolveNotificationText(n, locale);
+            return (
+              <li key={n.id} className="flex items-start gap-3 rounded-lg border border-border bg-card p-3">
+                <Badge variant={SEVERITY[n.severity] ?? 'secondary'} className="mt-0.5 shrink-0 text-[10px] uppercase">{n.severity}</Badge>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground">{title}</p>
+                  <p className="whitespace-pre-line text-xs text-muted-foreground">{message}</p>
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">{new Date(n.createdAt).toLocaleString()}</p>
+                </div>
+                <div className="flex shrink-0 gap-1">
+                  {!n.readAt && tab !== 'archived' ? <Button size="icon" variant="ghost" className="size-7" onClick={() => void act(n.id, 'read')} aria-label="Read"><CheckCheck className="size-3.5" /></Button> : null}
+                  {tab !== 'archived' ? <Button size="icon" variant="ghost" className="size-7" onClick={() => void act(n.id, 'archive')} aria-label="Archive"><Archive className="size-3.5" /></Button> : null}
+                  <Button size="icon" variant="ghost" className="size-7" onClick={() => void act(n.id, 'delete')} aria-label="Delete"><Trash2 className="size-3.5" /></Button>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

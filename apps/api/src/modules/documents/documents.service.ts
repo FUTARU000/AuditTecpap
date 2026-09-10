@@ -14,6 +14,7 @@ import { paginated, parsePagination, parseSort } from '../../common/pagination/p
 import { departmentScopeWhere } from '../../common/scoping/scope';
 import type { DataScope } from '../../common/types/data-scope';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { NotificationService } from '../productivity/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type { CreateDocumentDto, ListDocumentsQuery, UpdateDocumentDto } from './dto/documents.dto';
 
@@ -32,6 +33,7 @@ export class DocumentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditLog: AuditLogService,
+    private readonly notifications: NotificationService,
   ) {}
 
   async list(query: ListDocumentsQuery, scope: DataScope | undefined): Promise<PaginatedResult<DocumentDto>> {
@@ -193,6 +195,21 @@ export class DocumentsService {
   async create(dto: CreateDocumentDto, actor: ActorContext): Promise<DocumentDto> {
     await this.assertRelations(dto.departmentId, dto.categoryId, dto.processId);
 
+    // Business rule: expiry date must be >= effective date when both are provided
+    if (dto.effectiveDate && dto.expirationDate) {
+      const eff = new Date(dto.effectiveDate);
+      const exp = new Date(dto.expirationDate);
+      if (!isNaN(eff.getTime()) && !isNaN(exp.getTime()) && exp < eff) {
+        throw new ConflictException('Expiry date must be on or after the effective date');
+      }
+    }
+
+    // TECPAP rule: Audit Manager uploads are immediately APPROVED.
+    // Pilot uploads start as DRAFT (Pending Approval) and require Manager review.
+    const uploader = actor.actorId ? await this.prisma.user.findUnique({ where: { id: actor.actorId }, select: { role: { select: { isGlobal: true } } } }) : null;
+    const isQualityAuthority = !!uploader?.role?.isGlobal;
+    const initialStatus: DocumentStatus = isQualityAuthority ? 'APPROVED' : 'DRAFT';
+
     const doc = await this.prisma.controlledDocument.create({
       data: {
         title: dto.title,
@@ -206,6 +223,7 @@ export class DocumentsService {
         approverId: dto.approverId ?? null,
         keywords: dto.keywords ?? [],
         confidentiality: dto.confidentiality ?? 'INTERNAL',
+        status: initialStatus,
         effectiveDate: dto.effectiveDate ? new Date(dto.effectiveDate) : null,
         reviewDate: dto.reviewDate ? new Date(dto.reviewDate) : null,
         expirationDate: dto.expirationDate ? new Date(dto.expirationDate) : null,
@@ -214,8 +232,35 @@ export class DocumentsService {
       include: DOC_INCLUDE,
     });
 
-    await this.audit(actor, AUDIT_ACTIONS.DOCUMENT_CREATE, doc.id, { code: doc.code });
+    await this.audit(actor, AUDIT_ACTIONS.DOCUMENT_CREATE, doc.id, { code: doc.code, initialStatus });
+
+    // Notify Audit Managers when a Pilot uploads a document pending approval
+    if (!isQualityAuthority) {
+      await this.notifyPendingApproval(doc, actor);
+    }
+
     return toDocumentDto(doc);
+  }
+
+  /** Notify all global-role users (Audit Managers) that a document awaits approval. */
+  private async notifyPendingApproval(doc: { id: string; title: string; code: string; departmentId: string }, actor: ActorContext): Promise<void> {
+    const managers = (await this.prisma.user.findMany({
+      where: { role: { isGlobal: true }, status: 'ACTIVE', deletedAt: null },
+      select: { id: true },
+    })) ?? [];
+    const dept = await this.prisma.department.findUnique({ where: { id: doc.departmentId }, select: { name: true } });
+    for (const m of managers) {
+      await this.notifications.emit({
+        userId: m.id,
+        type: 'DOCUMENT_AWAITING_APPROVAL',
+        category: 'document',
+        severity: 'INFO',
+        params: { code: doc.code, title: doc.title, departmentName: dept?.name ?? '—' },
+        entityType: 'document',
+        entityId: doc.id,
+        actionUrl: `/documents/${doc.id}`,
+      }).catch(() => undefined);
+    }
   }
 
   async update(id: string, dto: UpdateDocumentDto, actor: ActorContext): Promise<DocumentDto> {
@@ -275,6 +320,34 @@ export class DocumentsService {
     const updated = await this.prisma.controlledDocument.update({ where: { id }, data, include: DOC_INCLUDE });
 
     await this.audit(actor, AUDIT_ACTIONS.DOCUMENT_STATUS_CHANGE, id, { from: current.status, to: status });
+
+    // TECPAP rule: notify the uploader when their document is approved or published
+    if ((status === 'APPROVED' || status === 'PUBLISHED') && current.createdById !== actor.actorId) {
+      await this.notifications.emit({
+        userId: current.createdById,
+        type: status === 'APPROVED' ? 'DOCUMENT_APPROVED' : 'DOCUMENT_APPROVED',
+        category: 'document',
+        severity: 'SUCCESS',
+        params: { code: current.code, title: current.title, action: status === 'APPROVED' ? 'approved' : 'published' },
+        entityType: 'document',
+        entityId: id,
+        actionUrl: `/documents/${id}`,
+      }).catch(() => undefined);
+    }
+    // Notify uploader on rejection (OBSOLETE from pilot's perspective = rejected)
+    if (status === 'OBSOLETE' && current.status === 'DRAFT' && current.createdById !== actor.actorId) {
+      await this.notifications.emit({
+        userId: current.createdById,
+        type: 'DOCUMENT_REJECTED',
+        category: 'document',
+        severity: 'WARNING',
+        params: { code: current.code, title: current.title },
+        entityType: 'document',
+        entityId: id,
+        actionUrl: `/documents/${id}`,
+      }).catch(() => undefined);
+    }
+
     return toDocumentDto(updated);
   }
 
