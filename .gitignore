@@ -44,6 +44,9 @@ apps/api/prisma/*.db
 # Docker volumes (local data)
 .docker-data/
 
+# Claude Code local settings (machine/session-specific; may hold local-only permissions)
+.claude/settings.local.json
+
 # Misc
 .cache/
 *.pem

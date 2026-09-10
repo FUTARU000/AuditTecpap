@@ -1,7 +1,19 @@
 {
   "permissions": {
     "allow": [
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(kill %1)",
+      "Bash(tasklist //FI \"IMAGENAME eq node.exe\" //FO CSV)",
+      "Bash(kill %1 %2)",
+      "Bash(python -c ' *)",
+      "Bash(python -c \"import sys,json;print\\(json.dumps\\(json.load\\(sys.stdin\\),indent=2\\)\\)\")",
+      "Bash(cd /c/stage_tecpap/AuditTecpap_ *)",
+      "Read(//dev/**)",
+      "Bash(DOCKER_BUILDKIT=0 docker compose build web)",
+      "Bash(docker image *)",
+      "Bash(python _p775_verify.py)",
+      "Bash(docker rm *)",
+      "Bash(pnpm -v)"
     ]
   }
 }
