@@ -11,11 +11,13 @@ import { useTranslation } from '@/lib/i18n';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { DatePicker } from '@/components/ui/date-picker';
 import { EmptyState, ErrorState, PageHeader } from '@/components/admin/common';
 
 const STATUS_TONE: Record<string, 'secondary' | 'warning' | 'success' | 'danger' | 'outline'> = {
   DRAFT: 'secondary', ROOT_CAUSE_ANALYSIS: 'secondary', ACTION_PLAN: 'secondary', IN_PROGRESS: 'warning',
   PENDING_VERIFICATION: 'outline', PENDING_EFFECTIVENESS: 'outline', CLOSED: 'success', CANCELLED: 'danger',
+  ASSIGNED: 'secondary', EVIDENCE_UPLOADED: 'outline', RETURNED: 'danger', VALIDATED: 'success',
 };
 
 export default function CapasPage() {
@@ -61,7 +63,7 @@ export default function CapasPage() {
       <PageHeader title={t('capa.title')} description={t('capa.description')} action={<Button onClick={() => { setForm({ title: '', description: '', departmentId: departments[0]?.id ?? '', priority: 'MEDIUM', targetDate: '' }); setDialogOpen(true); }}><PlusCircle className="size-4" /> {t('capa.new')}</Button>} />
       <div className="flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1"><Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input placeholder={t('common.search', 'Search')} className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}><SelectTrigger className="sm:w-48"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ALL">{t('filter.all_statuses')}</SelectItem>{['DRAFT', 'ROOT_CAUSE_ANALYSIS', 'ACTION_PLAN', 'IN_PROGRESS', 'PENDING_VERIFICATION', 'PENDING_EFFECTIVENESS', 'CLOSED', 'CANCELLED'].map((s) => <SelectItem key={s} value={s}>{t(`status.${s}`, s)}</SelectItem>)}</SelectContent></Select>
+        <Select value={statusFilter} onValueChange={setStatusFilter}><SelectTrigger className="sm:w-48"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ALL">{t('filter.all_statuses')}</SelectItem>{['ASSIGNED', 'IN_PROGRESS', 'EVIDENCE_UPLOADED', 'PENDING_VERIFICATION', 'RETURNED', 'VALIDATED', 'CLOSED', 'CANCELLED', 'DRAFT', 'ROOT_CAUSE_ANALYSIS', 'ACTION_PLAN', 'PENDING_EFFECTIVENESS'].map((s) => <SelectItem key={s} value={s}>{t(`capa.status.${s}`, t(`status.${s}`, s))}</SelectItem>)}</SelectContent></Select>
         <Button variant={overdueOnly ? 'default' : 'outline'} size="sm" onClick={() => setOverdueOnly((v) => !v)}>{t('capa.overdue')}</Button>
       </div>
       <div className="overflow-hidden rounded-lg border border-border bg-card">
@@ -83,7 +85,7 @@ export default function CapasPage() {
                   <td className="px-4 py-3"><Badge variant="outline" className="font-mono text-xs">{capa.referenceNumber}</Badge>{capa.isOverdue ? <Badge variant="danger" className="ml-1 text-[10px]">!</Badge> : null}</td>
                   <td className="px-4 py-3"><Link href={`/capas/${capa.id}`} className="font-medium text-foreground hover:underline">{capa.title}</Link></td>
                   <td className="px-4 py-3 text-muted-foreground">{capa.departmentName ?? '—'}</td>
-                  <td className="px-4 py-3"><Badge variant={STATUS_TONE[capa.status] ?? 'secondary'}>{t(`status.${capa.status}`, capa.status)}</Badge></td>
+                  <td className="px-4 py-3"><Badge variant={STATUS_TONE[capa.status] ?? 'secondary'}>{t(`capa.status.${capa.status}`, t(`status.${capa.status}`, capa.status))}</Badge></td>
                   <td className="px-4 py-3"><Badge variant={capa.priority === 'CRITICAL' ? 'danger' : capa.priority === 'HIGH' ? 'warning' : 'secondary'}>{t(`priority.${capa.priority}`, capa.priority)}</Badge></td>
                   <td className="px-4 py-3 text-muted-foreground">{capa.completedActionCount}/{capa.actionCount}</td>
                 </tr>
@@ -99,7 +101,7 @@ export default function CapasPage() {
             <div className="flex flex-col gap-2 sm:col-span-2"><Label htmlFor="c-title">{t('common.title', 'Title')}</Label><Input id="c-title" value={form.title} onChange={(e) => setForm((c) => ({ ...c, title: e.target.value }))} /></div>
             <div className="flex flex-col gap-2"><Label>{t('common.department', 'Department')}</Label><Select value={form.departmentId} onValueChange={(v) => setForm((c) => ({ ...c, departmentId: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent></Select></div>
             <div className="flex flex-col gap-2"><Label>{t('capa.priority')}</Label><Select value={form.priority} onValueChange={(v) => setForm((c) => ({ ...c, priority: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].map((p) => <SelectItem key={p} value={p}>{t(`priority.${p}`, p)}</SelectItem>)}</SelectContent></Select></div>
-            <div className="flex flex-col gap-2"><Label htmlFor="c-date">{t('capa.target_date')}</Label><Input id="c-date" type="date" value={form.targetDate} onChange={(e) => setForm((c) => ({ ...c, targetDate: e.target.value }))} /></div>
+            <div className="flex flex-col gap-2"><Label htmlFor="c-date">{t('capa.target_date')}</Label><DatePicker id="c-date" value={form.targetDate || null} minDate={new Date().toISOString().slice(0, 10)} onChange={(v) => setForm((c) => ({ ...c, targetDate: v ?? '' }))} placeholder="Select target date" /></div>
             <div className="flex flex-col gap-2 sm:col-span-2"><Label htmlFor="c-desc">{t('common.description', 'Description')}</Label><Textarea id="c-desc" value={form.description} onChange={(e) => setForm((c) => ({ ...c, description: e.target.value }))} /></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setDialogOpen(false)}>{t('common.cancel', 'Cancel')}</Button><Button onClick={() => void save()} disabled={saving || !form.title || !form.departmentId}>{saving ? <Loader2 className="size-4 animate-spin" /> : null}{t('common.create', 'Create')}</Button></DialogFooter>

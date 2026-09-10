@@ -52,6 +52,8 @@ export interface CapaDto {
   hasRootCause: boolean;
   hasVerification: boolean;
   hasEffectivenessReview: boolean;
+  /** Phase 7.7: TECPAP visual workflow stage (computed from status). */
+  stage: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -73,8 +75,18 @@ export interface CapaDetailDto extends CapaDto {
     } | null;
   } | null;
   actions: CapaActionDto[];
-  verification: { verifiedByName: string | null; result: VerificationResult; notes: string | null; verifiedAt: string } | null;
+  /** Phase 3: full verification history, one row per attempt, oldest first. Never overwritten. */
+  verifications: CapaVerificationDto[];
   effectiveness: { reviewedByName: string | null; result: EffectivenessResult; notes: string | null; reviewedAt: string } | null;
+}
+
+export interface CapaVerificationDto {
+  id: string;
+  verifiedById: string;
+  verifiedByName: string | null;
+  result: VerificationResult;
+  notes: string | null;
+  verifiedAt: string;
 }
 
 export interface CreateCapaDto {

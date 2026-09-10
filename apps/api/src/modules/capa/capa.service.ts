@@ -1,5 +1,5 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { CAPA_TRANSITIONS, type CapaStatus } from '@tecpap/config';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { CAPA_STAGE_MAP, CAPA_TRANSITIONS, type CapaStatus } from '@tecpap/config';
 import type { CapaActionDto, CapaDetailDto, CapaDto, EffectivenessResult, PaginatedResult, VerificationResult } from '@tecpap/types';
 import type { Prisma } from '@prisma/client';
 import type { ActorContext } from '../../common/context/actor';
@@ -8,6 +8,7 @@ import { departmentScopeWhere } from '../../common/scoping/scope';
 import type { DataScope } from '../../common/types/data-scope';
 import { ActivityTimelineService } from '../activity-timeline/activity-timeline.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { NotificationService } from '../productivity/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type { CreateCapaDto, ListCapasQuery, UpdateCapaDto } from './dto/capa.dto';
 
@@ -20,7 +21,9 @@ const DETAIL_INCLUDE = {
   finding: { select: { id: true, title: true } },
   rootCause: { include: { whySteps: { orderBy: { stepNumber: 'asc' } }, eightD: true } },
   actions: { include: { owner: { select: { firstName: true, lastName: true } } }, orderBy: { createdAt: 'asc' } },
-  verification: { include: { verifiedBy: { select: { firstName: true, lastName: true } } } },
+  // Phase 3: every attempt is preserved — ordered oldest-first so "Attempt 1"
+  // is the first verification ever recorded for this CAPA.
+  verifications: { include: { verifiedBy: { select: { firstName: true, lastName: true } } }, orderBy: { verifiedAt: 'asc' } },
   effectiveness: { include: { reviewedBy: { select: { firstName: true, lastName: true } } } },
 } satisfies Prisma.CapaInclude;
 
@@ -32,7 +35,7 @@ const LIST_INCLUDE = {
   finding: { select: { title: true } },
   _count: { select: { actions: true } },
   rootCause: { select: { id: true } },
-  verification: { select: { id: true } },
+  verifications: { select: { id: true } },
   effectiveness: { select: { id: true } },
 } satisfies Prisma.CapaInclude;
 
@@ -47,6 +50,7 @@ export class CapaService {
     private readonly prisma: PrismaService,
     private readonly auditLog: AuditLogService,
     private readonly timeline: ActivityTimelineService,
+    private readonly notifications: NotificationService,
   ) {}
 
   async list(query: ListCapasQuery, scope: DataScope | undefined): Promise<PaginatedResult<CapaDto>> {
@@ -77,7 +81,21 @@ export class CapaService {
     return this.toDetailDto(capa, new Date());
   }
 
-  async create(dto: CreateCapaDto, actor: ActorContext): Promise<CapaDetailDto> {
+  async create(dto: CreateCapaDto, actor: ActorContext, initialStatus?: CapaStatus, scope?: DataScope): Promise<CapaDetailDto> {
+    // Department-scoped users (Pilots) may only create a CAPA in their own
+    // department — the target departmentId must match their DataScope.
+    // Global scope (Admin/Audit Manager) and trusted internal callers that
+    // don't pass a scope (e.g. auto-CAPA creation from a finding) are unaffected.
+    if (scope && !scope.isGlobal && dto.departmentId !== scope.departmentId) {
+      throw new ForbiddenException('Cannot create a CAPA outside your department');
+    }
+    // Business rule: CAPA target date cannot be in the past
+    if (dto.targetDate) {
+      const target = new Date(dto.targetDate);
+      if (isNaN(target.getTime())) throw new ConflictException('Invalid target date format');
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      if (target < today) throw new ConflictException('CAPA target date cannot be in the past');
+    }
     const referenceNumber = await this.generateReference();
     const capa = await this.prisma.capa.create({
       data: {
@@ -85,6 +103,7 @@ export class CapaService {
         sourceType: dto.sourceType ?? 'MANUAL', sourceId: dto.sourceId ?? null, findingId: dto.findingId ?? null,
         departmentId: dto.departmentId, processId: dto.processId ?? null, ownerId: dto.ownerId ?? null,
         createdById: actor.actorId ?? '', priority: dto.priority ?? 'MEDIUM',
+        status: (initialStatus ?? 'DRAFT') as Prisma.CapaUncheckedCreateInput['status'],
         targetDate: dto.targetDate ? new Date(dto.targetDate) : null,
         effectivenessDueDate: dto.effectivenessDueDate ? new Date(dto.effectivenessDueDate) : null,
         rootCause: { create: {} },
@@ -92,7 +111,7 @@ export class CapaService {
       include: DETAIL_INCLUDE,
     });
     await this.timeline.record({ processId: dto.processId, eventType: 'capa.created', title: `${referenceNumber} created`, entityType: 'capa', entityId: capa.id, actorId: actor.actorId });
-    await this.audit(actor, 'capa.create', capa.id, { referenceNumber });
+    await this.audit(actor, 'capa.create', capa.id, { referenceNumber, initialStatus: initialStatus ?? 'DRAFT' });
     return this.toDetailDto(capa, new Date());
   }
 
@@ -124,7 +143,8 @@ export class CapaService {
     }
     // Enforce: cannot close without verification + effectiveness
     if (target === 'CLOSED') {
-      if (!current.verification || current.verification.result !== 'PASSED') throw new ConflictException('CAPA must pass verification before closure');
+      const latest = this.latestVerification(current.verifications);
+      if (!latest || latest.result !== 'PASSED') throw new ConflictException('CAPA must pass verification before closure');
       if (!current.effectiveness || current.effectiveness.result !== 'EFFECTIVE') throw new ConflictException('CAPA must have an effective effectiveness review before closure');
     }
 
@@ -140,21 +160,98 @@ export class CapaService {
     return this.toDetailDto(updated, now);
   }
 
+  /**
+   * Phase 3 — audit trail: every call CREATES a new, immutable
+   * CapaVerification row. Earlier attempts (e.g. a prior FAILED) are never
+   * updated or overwritten, so the full verification history survives an
+   * unlimited number of FAILED → RETURNED → rework → resubmit cycles.
+   */
   async verify(id: string, result: 'PASSED' | 'FAILED', notes: string | null, actor: ActorContext): Promise<CapaDetailDto> {
     const capa = await this.prisma.capa.findFirst({ where: { id, deletedAt: null } });
     if (!capa) throw new NotFoundException('CAPA not found');
     if (capa.status !== 'PENDING_VERIFICATION') throw new ConflictException('CAPA must be in PENDING_VERIFICATION to verify');
 
-    await this.prisma.capaVerification.upsert({
-      where: { capaId: id },
-      create: { capaId: id, verifiedById: actor.actorId!, result, notes },
-      update: { verifiedById: actor.actorId!, result, notes, verifiedAt: new Date() },
+    const verification = await this.prisma.capaVerification.create({
+      data: { capaId: id, verifiedById: actor.actorId!, result, notes },
     });
-    // Auto-transition based on result
-    const nextStatus = result === 'PASSED' ? 'PENDING_EFFECTIVENESS' : 'IN_PROGRESS';
+    // Phase 7.7: TECPAP workflow — PASSED → VALIDATED (new), FAILED → RETURNED (new)
+    // Legacy CAPAs that came through PENDING_EFFECTIVENESS keep that path.
+    const nextStatus: CapaStatus = result === 'PASSED' ? 'VALIDATED' : 'RETURNED';
     const updated = await this.prisma.capa.update({ where: { id }, data: { status: nextStatus, verifiedAt: result === 'PASSED' ? new Date() : null }, include: DETAIL_INCLUDE });
-    await this.timeline.record({ processId: capa.processId, eventType: `capa.verification_${result.toLowerCase()}`, title: `${capa.referenceNumber} verification ${result}`, entityType: 'capa', entityId: id, actorId: actor.actorId });
-    await this.audit(actor, `capa.verify_${result.toLowerCase()}`, id, { notes });
+    await this.timeline.record({ processId: capa.processId, eventType: `capa.verification_${result.toLowerCase()}`, title: `${capa.referenceNumber} verification ${result} → ${nextStatus}`, entityType: 'capa', entityId: id, actorId: actor.actorId });
+    await this.audit(actor, `capa.verify_${result.toLowerCase()}`, id, { notes, nextStatus });
+
+    // Phase 4 — notify the responsible Pilot of the verification outcome. Only
+    // ever fires AFTER the verification row + status transition above have
+    // both succeeded (sequential await; nothing here runs if either threw),
+    // and is itself best-effort: a notification/email failure must never fail
+    // the verification call, matching every other emit() call site in the app.
+    await this.notifyVerificationResult(capa, verification.id, result, notes, actor);
+
+    return this.toDetailDto(updated, new Date());
+  }
+
+  /**
+   * Recipient = the CAPA's existing owner, falling back to its creator (the
+   * exact fallback already used for CAPA reminders in reminder.service.ts) —
+   * never a new ownership model, never a department-wide broadcast. Skips the
+   * acting Audit Manager if they happen to be that same user (no self-notify),
+   * matching the guard already used in DocumentsService.changeStatus().
+   *
+   * `entityId` is the verification attempt's own id (not the CAPA id) so that
+   * NotificationService.emit()'s 24h per-(type, entityId, userId) dedup can
+   * never collapse two distinct verification attempts on the same CAPA into
+   * one notification — each attempt is a genuinely new event.
+   */
+  private async notifyVerificationResult(
+    capa: { id: string; referenceNumber: string; title: string; departmentId: string; ownerId: string | null; createdById: string },
+    verificationId: string,
+    result: 'PASSED' | 'FAILED',
+    notes: string | null,
+    actor: ActorContext,
+  ): Promise<void> {
+    const recipientId = capa.ownerId ?? capa.createdById;
+    if (recipientId === actor.actorId) return;
+
+    const passed = result === 'PASSED';
+    await this.notifications.emit({
+      userId: recipientId,
+      type: passed ? 'CAPA_VALIDATED' : 'CAPA_RETURNED',
+      category: 'capa',
+      severity: passed ? 'SUCCESS' : 'WARNING',
+      // Phase 5: params drive the shared EN/FR template (packages/config) —
+      // notes is an optional generic suffix the template renderer appends.
+      params: { reference: capa.referenceNumber, title: capa.title, notes: notes ?? undefined },
+      entityType: 'capa_verification',
+      entityId: verificationId,
+      actionUrl: `/capas/${capa.id}`,
+      departmentId: capa.departmentId,
+    }).catch(() => undefined);
+  }
+
+  /** Phase 7.7 — Pilot submits corrective action work for Audit Manager verification. */
+  async submit(id: string, actor: ActorContext): Promise<CapaDetailDto> {
+    const current = await this.prisma.capa.findFirst({ where: { id, deletedAt: null }, include: DETAIL_INCLUDE });
+    if (!current) throw new NotFoundException('CAPA not found');
+    if (!['ASSIGNED', 'IN_PROGRESS', 'EVIDENCE_UPLOADED'].includes(current.status)) {
+      throw new ConflictException(`CAPA must be ASSIGNED, IN_PROGRESS or EVIDENCE_UPLOADED to submit (current: ${current.status})`);
+    }
+    const incomplete = current.actions.filter((a) => a.status !== 'COMPLETED' && a.status !== 'VERIFIED' && a.status !== 'CANCELLED');
+    if (incomplete.length > 0) throw new ConflictException(`${incomplete.length} action(s) are not completed`);
+    const updated = await this.prisma.capa.update({ where: { id }, data: { status: 'PENDING_VERIFICATION' as CapaStatus, submittedAt: new Date() }, include: DETAIL_INCLUDE });
+    await this.timeline.record({ processId: current.processId, eventType: 'capa.submitted', title: `${current.referenceNumber} submitted for verification`, entityType: 'capa', entityId: id, actorId: actor.actorId });
+    await this.audit(actor, 'capa.submit', id);
+    return this.toDetailDto(updated, new Date());
+  }
+
+  /** Phase 7.7 — Pilot responds to a RETURNED CAPA (rework) and moves back to IN_PROGRESS. */
+  async rework(id: string, actor: ActorContext): Promise<CapaDetailDto> {
+    const current = await this.prisma.capa.findFirst({ where: { id, deletedAt: null } });
+    if (!current) throw new NotFoundException('CAPA not found');
+    if (current.status !== 'RETURNED') throw new ConflictException('CAPA must be RETURNED to start rework');
+    const updated = await this.prisma.capa.update({ where: { id }, data: { status: 'IN_PROGRESS' as CapaStatus }, include: DETAIL_INCLUDE });
+    await this.timeline.record({ processId: current.processId, eventType: 'capa.rework_started', title: `${current.referenceNumber} rework started`, entityType: 'capa', entityId: id, actorId: actor.actorId });
+    await this.audit(actor, 'capa.rework', id);
     return this.toDetailDto(updated, new Date());
   }
 
@@ -185,8 +282,13 @@ export class CapaService {
     if (!current) throw new NotFoundException('CAPA not found');
     if (!(CAPA_TRANSITIONS[current.status] ?? []).includes(target)) throw new ConflictException(`Cannot transition CAPA from ${current.status} to ${target}`);
     if (target === 'CLOSED') {
-      if (!current.verification || current.verification.result !== 'PASSED') throw new ConflictException('Verification must pass before closure');
-      if (!current.effectiveness || current.effectiveness.result !== 'EFFECTIVE') throw new ConflictException('Effectiveness must be EFFECTIVE before closure');
+      const latest = this.latestVerification(current.verifications);
+      if (!latest || latest.result !== 'PASSED') throw new ConflictException('Verification must pass before closure');
+      // TECPAP path: VALIDATED status means verification passed and effectiveness is implied.
+      // Legacy path: PENDING_EFFECTIVENESS requires an explicit EFFECTIVE effectiveness review.
+      if (current.status === 'PENDING_EFFECTIVENESS' && (!current.effectiveness || current.effectiveness.result !== 'EFFECTIVE')) {
+        throw new ConflictException('Effectiveness must be EFFECTIVE before closure');
+      }
     }
     const now = new Date();
     const updated = await this.prisma.capa.update({ where: { id }, data: { status: target, closedAt: target === 'CLOSED' ? now : null, closedById: target === 'CLOSED' ? actor.actorId : undefined, closureComment: extra?.closureComment ?? undefined } as Prisma.CapaUncheckedUpdateInput, include: DETAIL_INCLUDE });
@@ -245,6 +347,11 @@ export class CapaService {
     await this.audit(actor, 'capa.delete', id);
   }
 
+  /** Most recent verification attempt — `verifications` is fetched ordered oldest-first. */
+  private latestVerification<T extends { result: VerificationResult }>(verifications: T[]): T | undefined {
+    return verifications.at(-1);
+  }
+
   private async generateReference(): Promise<string> {
     const year = new Date().getFullYear();
     const count = await this.prisma.capa.count({ where: { referenceNumber: { startsWith: `CAPA-${year}-` } } });
@@ -264,7 +371,8 @@ export class CapaService {
       isOverdue: capa.targetDate ? capa.targetDate < now && capa.status !== 'CLOSED' && capa.status !== 'CANCELLED' : false,
       actionCount: capa._count.actions,
       completedActionCount: 0,
-      hasRootCause: !!capa.rootCause?.id, hasVerification: !!capa.verification?.id, hasEffectivenessReview: !!capa.effectiveness?.id,
+      hasRootCause: !!capa.rootCause?.id, hasVerification: capa.verifications.length > 0, hasEffectivenessReview: !!capa.effectiveness?.id,
+      stage: CAPA_STAGE_MAP[capa.status as CapaStatus] ?? null,
       createdAt: capa.createdAt.toISOString(), updatedAt: capa.updatedAt.toISOString(),
     };
   }
@@ -301,10 +409,15 @@ export class CapaService {
         isOverdue: a.dueDate ? a.dueDate < now && a.status !== 'COMPLETED' && a.status !== 'VERIFIED' && a.status !== 'CANCELLED' : false,
         createdAt: a.createdAt.toISOString(), updatedAt: a.updatedAt.toISOString(),
       })),
-      verification: capa.verification ? {
-        verifiedByName: fullName(capa.verification.verifiedBy), result: capa.verification.result as VerificationResult,
-        notes: capa.verification.notes, verifiedAt: capa.verification.verifiedAt.toISOString(),
-      } : null,
+      // Phase 3: full immutable history, oldest attempt first ("Attempt 1" ... "Attempt N").
+      verifications: capa.verifications.map((v) => ({
+        id: v.id,
+        verifiedById: v.verifiedById,
+        verifiedByName: fullName(v.verifiedBy),
+        result: v.result as VerificationResult,
+        notes: v.notes,
+        verifiedAt: v.verifiedAt.toISOString(),
+      })),
       effectiveness: capa.effectiveness ? {
         reviewedByName: fullName(capa.effectiveness.reviewedBy), result: capa.effectiveness.result as EffectivenessResult,
         notes: capa.effectiveness.notes, reviewedAt: capa.effectiveness.reviewedAt.toISOString(),

@@ -28,7 +28,7 @@ export class CapaController {
   findOne(@Param('id') id: string, @Req() req: Request) { return this.capaService.findOne(id, req.dataScope); }
 
   @Post() @Permissions('capas.create') @ApiOperation({ summary: 'Create a CAPA' })
-  create(@Body() dto: CreateCapaDto, @Req() req: Request) { return this.capaService.create(dto, actorFromRequest(req)); }
+  create(@Body() dto: CreateCapaDto, @Req() req: Request) { return this.capaService.create(dto, actorFromRequest(req), undefined, req.dataScope); }
 
   @Patch(':id') @Permissions('capas.update') @ApiOperation({ summary: 'Update a CAPA' })
   update(@Param('id') id: string, @Body() dto: UpdateCapaDto, @Req() req: Request) { return this.capaService.update(id, dto, actorFromRequest(req)); }
@@ -44,6 +44,12 @@ export class CapaController {
 
   @Post(':id/close') @Permissions('capas.close') @ApiOperation({ summary: 'Close CAPA' })
   close(@Param('id') id: string, @Body() dto: ClosureDto, @Req() req: Request) { return this.capaService.close(id, dto.closureComment ?? null, actorFromRequest(req)); }
+
+  @Post(':id/submit') @Permissions('capas.submit') @ApiOperation({ summary: 'Pilot submits corrective action for verification (TECPAP workflow)' })
+  submit(@Param('id') id: string, @Req() req: Request) { return this.capaService.submit(id, actorFromRequest(req)); }
+
+  @Post(':id/rework') @Permissions('capas.rework') @ApiOperation({ summary: 'Pilot starts rework after return (TECPAP workflow)' })
+  rework(@Param('id') id: string, @Req() req: Request) { return this.capaService.rework(id, actorFromRequest(req)); }
 
   @Delete(':id') @Permissions('capas.update') @ApiOperation({ summary: 'Soft-delete CAPA' })
   remove(@Param('id') id: string, @Req() req: Request) { return this.capaService.remove(id, actorFromRequest(req)); }
@@ -63,25 +69,25 @@ export class CapaController {
 
   // Actions
   @Get(':id/actions') @Permissions('capa_actions.read') @ApiOperation({ summary: 'List actions' })
-  listActions(@Param('id') id: string) { return this.actionsService.list(id); }
+  listActions(@Param('id') id: string, @Req() req: Request) { return this.actionsService.list(id, req.dataScope); }
 
   @Post(':id/actions') @Permissions('capa_actions.create') @ApiOperation({ summary: 'Create action' })
-  createAction(@Param('id') id: string, @Body() dto: CreateActionDto, @Req() req: Request) { return this.actionsService.create(id, dto, actorFromRequest(req)); }
+  createAction(@Param('id') id: string, @Body() dto: CreateActionDto, @Req() req: Request) { return this.actionsService.create(id, dto, actorFromRequest(req), req.dataScope); }
 
   @Patch(':id/actions/:actionId') @Permissions('capa_actions.update') @ApiOperation({ summary: 'Update action' })
-  updateAction(@Param('id') id: string, @Param('actionId') actionId: string, @Body() dto: UpdateActionDto, @Req() req: Request) { return this.actionsService.update(actionId, dto, actorFromRequest(req)); }
+  updateAction(@Param('id') id: string, @Param('actionId') actionId: string, @Body() dto: UpdateActionDto, @Req() req: Request) { return this.actionsService.update(actionId, dto, actorFromRequest(req), req.dataScope); }
 
   @Delete(':id/actions/:actionId') @Permissions('capa_actions.create') @ApiOperation({ summary: 'Delete action' })
-  removeAction(@Param('id') id: string, @Param('actionId') actionId: string) { return this.actionsService.remove(actionId); }
+  removeAction(@Param('id') id: string, @Param('actionId') actionId: string, @Req() req: Request) { return this.actionsService.remove(actionId, req.dataScope); }
 
   @Post(':id/actions/:actionId/evidence') @Permissions('capa_actions.update') @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_UPLOAD_BYTES } })) @ApiOperation({ summary: 'Upload action evidence' })
   uploadEvidence(@Param('id') id: string, @Param('actionId') actionId: string, @UploadedFile() file: Express.Multer.File, @Body() body: { comment?: string }, @Req() req: Request) {
     if (!file) return Promise.reject(new Error('File is required'));
-    return this.actionsService.uploadEvidence(actionId, file, body.comment ?? null, actorFromRequest(req));
+    return this.actionsService.uploadEvidence(actionId, file, body.comment ?? null, actorFromRequest(req), req.dataScope);
   }
 
   @Get(':id/actions/:actionId/evidence/:evidenceId/download') @Permissions('capa_actions.read') @ApiOperation({ summary: 'Download evidence' })
-  downloadEvidence(@Param('actionId') actionId: string, @Param('evidenceId') evidenceId: string) { return this.actionsService.downloadUrl(actionId, evidenceId); }
+  downloadEvidence(@Param('actionId') actionId: string, @Param('evidenceId') evidenceId: string, @Req() req: Request) { return this.actionsService.downloadUrl(actionId, evidenceId, req.dataScope); }
 
   // Reports
   @Get(':id/report.pdf') @Permissions('capas.export') @ApiOperation({ summary: 'PDF report' })
@@ -103,8 +109,8 @@ export class FindingCapaController {
   constructor(private readonly findingsService: CapaFindingsService) {}
 
   @Post(':id/capa-decision') @Permissions('capas.create') @ApiOperation({ summary: 'Record CAPA decision on a finding' })
-  decide(@Param('id') id: string, @Body() dto: FindingDecisionDto, @Req() req: Request) { return this.findingsService.decide(id, dto, actorFromRequest(req)); }
+  decide(@Param('id') id: string, @Body() dto: FindingDecisionDto, @Req() req: Request) { return this.findingsService.decide(id, dto, actorFromRequest(req), req.dataScope); }
 
   @Post(':id/capa') @Permissions('capas.create') @ApiOperation({ summary: 'Create CAPA from finding' })
-  createFromFinding(@Param('id') id: string, @Body() dto: CreateCapaDto, @Req() req: Request) { return this.findingsService.createFromFinding(id, dto, actorFromRequest(req)); }
+  createFromFinding(@Param('id') id: string, @Body() dto: CreateCapaDto, @Req() req: Request) { return this.findingsService.createFromFinding(id, dto, actorFromRequest(req), req.dataScope); }
 }
