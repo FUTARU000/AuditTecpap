@@ -5,6 +5,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { MAX_UPLOAD_BYTES } from '@tecpap/config';
 import { actorFromRequest } from '../../common/context/actor';
 import { Permissions } from '../../common/decorators/permissions.decorator';
+import { CapaFindingsService } from '../capa/capa-findings.service';
 import { AuditEvidenceService } from './audit-evidence.service';
 import { AuditReportsService } from './audit-reports.service';
 import { AuditsService } from './audits.service';
@@ -20,6 +21,7 @@ export class AuditsController {
     private readonly findingsService: FindingsService,
     private readonly evidenceService: AuditEvidenceService,
     private readonly reportsService: AuditReportsService,
+    private readonly capaFindingsService: CapaFindingsService,
   ) {}
 
   @Get()
@@ -76,29 +78,33 @@ export class AuditsController {
 
   @Get(':id/findings')
   @Permissions('findings.read')
-  listFindings(@Param('id') id: string) { return this.findingsService.listByAudit(id); }
+  listFindings(@Param('id') id: string, @Req() req: Request) { return this.findingsService.listByAudit(id, req.dataScope); }
 
   @Post(':id/findings')
   @Permissions('findings.create')
-  createFinding(@Param('id') id: string, @Body() dto: CreateFindingDto, @Req() req: Request) {
-    return this.findingsService.create({ ...dto, auditId: id }, actorFromRequest(req));
+  async createFinding(@Param('id') id: string, @Body() dto: CreateFindingDto, @Req() req: Request) {
+    const actor = actorFromRequest(req);
+    const finding = await this.findingsService.create({ ...dto, auditId: id }, actor, req.dataScope);
+    // Phase 7.7: auto-create CAPA for non-conformity findings (TECPAP workflow)
+    void this.capaFindingsService.autoCreateForFinding(finding.id, actor).catch(() => undefined);
+    return finding;
   }
 
   @Patch(':auditId/findings/:findingId')
   @Permissions('findings.update')
   updateFinding(@Param('findingId') findingId: string, @Body() dto: UpdateFindingDto, @Req() req: Request) {
-    return this.findingsService.update(findingId, dto, actorFromRequest(req));
+    return this.findingsService.update(findingId, dto, actorFromRequest(req), req.dataScope);
   }
 
   @Delete(':auditId/findings/:findingId')
   @Permissions('findings.update')
-  removeFinding(@Param('findingId') findingId: string) { return this.findingsService.remove(findingId); }
+  removeFinding(@Param('findingId') findingId: string, @Req() req: Request) { return this.findingsService.remove(findingId, req.dataScope); }
 
   // --------------------------------------------------------------- evidence
 
   @Get(':id/evidence')
   @Permissions('audits.read')
-  listEvidence(@Param('id') id: string) { return this.evidenceService.listByAudit(id); }
+  listEvidence(@Param('id') id: string, @Req() req: Request) { return this.evidenceService.listByAudit(id, req.dataScope); }
 
   @Post(':id/evidence')
   @Permissions('evidence.upload')
@@ -111,12 +117,20 @@ export class AuditsController {
     @Req() req: Request,
   ) {
     if (!file) return Promise.reject(new Error('File is required'));
-    return this.evidenceService.upload(id, file, meta, actorFromRequest(req));
+    return this.evidenceService.upload(id, file, meta, actorFromRequest(req), req.dataScope);
   }
 
   @Get(':auditId/evidence/:evidenceId/download')
   @Permissions('audits.read')
-  downloadEvidence(@Param('evidenceId') evidenceId: string) { return this.evidenceService.downloadUrl(evidenceId); }
+  downloadEvidence(@Param('evidenceId') evidenceId: string, @Req() req: Request) { return this.evidenceService.downloadUrl(evidenceId, req.dataScope); }
+
+  @Delete(':id/evidence/:evidenceId')
+  @Permissions('evidence.upload')
+  @ApiOperation({ summary: 'Delete evidence' })
+  async deleteEvidence(@Param('id') id: string, @Param('evidenceId') evidenceId: string, @Req() req: Request) {
+    await this.evidenceService.remove(evidenceId, actorFromRequest(req), req.dataScope);
+    return { ok: true };
+  }
 
   // --------------------------------------------------------------- reports
 

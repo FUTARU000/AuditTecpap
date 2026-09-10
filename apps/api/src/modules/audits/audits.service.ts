@@ -77,6 +77,14 @@ export class AuditsService {
     if (!template) throw new NotFoundException('Template not found');
     if (template.status !== 'PUBLISHED') throw new ConflictException('Only published templates can be used to create audits');
 
+    // Business rule: audit scheduled date cannot be in the past
+    if (dto.scheduledDate) {
+      const scheduled = new Date(dto.scheduledDate);
+      if (isNaN(scheduled.getTime())) throw new ConflictException('Invalid scheduled date format');
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      if (scheduled < today) throw new ConflictException('Audit scheduled date cannot be in the past');
+    }
+
     const audit = await this.prisma.audit.create({
       data: {
         title: dto.title, templateId: dto.templateId, departmentId: dto.departmentId, processId: dto.processId ?? null,

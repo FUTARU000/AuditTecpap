@@ -22,13 +22,10 @@ export interface DepartmentSeed {
 export const DEPARTMENTS: readonly DepartmentSeed[] = [
   { code: 'PROD', name: 'Production', description: 'Manufacturing and production lines', sortOrder: 1 },
   { code: 'QUAL', name: 'Quality', description: 'Quality assurance and control', sortOrder: 2 },
-  { code: 'MAINT', name: 'Maintenance', description: 'Equipment and facilities maintenance', sortOrder: 3 },
-  { code: 'PUR', name: 'Purchasing', description: 'Procurement and suppliers', sortOrder: 4 },
-  { code: 'HR', name: 'Human Resources', description: 'People and administration', sortOrder: 5 },
-  { code: 'FIN', name: 'Finance', description: 'Accounting and finance', sortOrder: 6 },
-  { code: 'LOG', name: 'Logistics', description: 'Warehousing and distribution', sortOrder: 7 },
-  { code: 'COM', name: 'Commercial', description: 'Sales and customer relations', sortOrder: 8 },
-  { code: 'IT', name: 'IT', description: 'Information technology', sortOrder: 9 },
+  { code: 'PUR', name: 'Purchasing', description: 'Procurement and suppliers', sortOrder: 3 },
+  { code: 'HR', name: 'Human Resources', description: 'People and administration', sortOrder: 4 },
+  { code: 'LOG', name: 'Logistics', description: 'Warehousing and distribution', sortOrder: 5 },
+  { code: 'HYG', name: 'Hygiene', description: 'Hygiene and food safety', sortOrder: 6 },
 ];
 
 /** Reminder lead-times (in days) for certificate/document expiration. */

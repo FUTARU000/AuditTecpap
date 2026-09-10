@@ -2,7 +2,7 @@ import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
 import { FINDING_SEVERITIES, type FindingSeverity } from '@tecpap/config';
 
 export class CreateFindingDto {
-  @IsUUID() auditId!: string;
+  @IsOptional() @IsUUID() auditId?: string;
   @IsOptional() @IsUUID() questionId?: string;
   @IsString() title!: string;
   @IsOptional() @IsString() description?: string;

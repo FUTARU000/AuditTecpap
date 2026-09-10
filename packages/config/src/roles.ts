@@ -112,6 +112,8 @@ const MANAGER_PERMISSIONS = [
   'capas.read', 'capas.create', 'capas.update', 'capas.assign',
   'capas.verify', 'capas.effectiveness_review', 'capas.close', 'capas.export',
   'capa_actions.read', 'capa_actions.create', 'capa_actions.update', 'capa_actions.complete',
+  // Phase 7.7 — TECPAP workflow (managers can also submit/rework)
+  'capas.submit', 'capas.rework',
   // Phase 7 — Legacy QMS import (full: run, review, govern)
   'imports.read', 'imports.start', 'imports.review', 'imports.cancel', 'imports.stats',
 ];
@@ -125,8 +127,7 @@ const PILOT_PERMISSIONS = [
   'departments.read',
   'templates.read',
   'audits.read',
-  'audits.execute',
-  'audits.submit',
+  // Phase 7.7: Pilots do NOT perform audits — only read them
   'findings.read',
   'findings.create',
   'findings.update',
@@ -149,18 +150,14 @@ const PILOT_PERMISSIONS = [
   'business_objects.update',
   'kpis.read',
   'risks.read',
-  // Phase 5 — audit execution (department-scoped)
-  'templates.read',
-  'audits.read',
-  'audits.create',
-  'audits.execute',
-  'audits.submit',
-  'findings.read',
-  'findings.create',
-  'findings.update',
+  // Phase 7.7: Pilots do NOT create, execute, or submit audits (see comment
+  // above) — they only read audits assigned to their department and may
+  // contribute evidence when asked to by the Audit Manager.
   'evidence.upload',
   // Phase 6 — CAPA (department-scoped)
-  'capas.read', 'capa_actions.read', 'capa_actions.update', 'capa_actions.complete',
+  'capas.read', 'capas.create', 'capas.update', 'capa_actions.read', 'capa_actions.create', 'capa_actions.update', 'capa_actions.complete',
+  // Phase 7.7 — TECPAP workflow: pilots can submit work and respond to rework
+  'capas.submit', 'capas.rework',
   // Phase 7 — Legacy QMS import (view own department's imports)
   'imports.read',
 ];

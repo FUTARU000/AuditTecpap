@@ -143,6 +143,8 @@ export const PERMISSION_CATALOG: PermissionGroup[] = [
       { key: 'capas.effectiveness_review', label: 'Perform effectiveness review' },
       { key: 'capas.close', label: 'Close CAPAs' },
       { key: 'capas.export', label: 'Export CAPA reports' },
+      { key: 'capas.submit', label: 'Submit CAPA for verification', description: 'Pilot submits corrective action work for Audit Manager review' },
+      { key: 'capas.rework', label: 'Respond to CAPA rework', description: 'Pilot reworks after return from verification' },
     ],
   },
   {
