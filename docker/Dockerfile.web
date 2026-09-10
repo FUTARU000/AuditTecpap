@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 # TECPAP Audit — Next.js frontend image.
 # Single-stage on purpose for reliability in a monorepo; optimize to
 # multi-stage / output: standalone in a later hardening pass.
