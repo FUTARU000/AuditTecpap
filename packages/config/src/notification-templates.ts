@@ -24,9 +24,12 @@ export interface NotificationTemplateText {
 
 export type NotificationTemplateParams = Record<string, string | number | boolean | undefined>;
 
-type NotificationTemplateEntry = NotificationTemplateText | ((params: NotificationTemplateParams) => NotificationTemplateText);
+type NotificationTemplateEntry =
+  NotificationTemplateText | ((params: NotificationTemplateParams) => NotificationTemplateText);
 
-type NotificationTemplateCatalog = Partial<Record<string, Record<NotificationLocale, NotificationTemplateEntry>>>;
+type NotificationTemplateCatalog = Partial<
+  Record<string, Record<NotificationLocale, NotificationTemplateEntry>>
+>;
 
 /** `{key}` substitution — missing/undefined params render as an empty string. */
 function interpolate(template: string, params: NotificationTemplateParams): string {
@@ -38,20 +41,61 @@ function interpolate(template: string, params: NotificationTemplateParams): stri
 
 export const NOTIFICATION_TEMPLATES: NotificationTemplateCatalog = {
   CAPA_ASSIGNED: {
-    en: { title: 'CAPA assigned: {reference}', message: '{findingTitle} — corrective action required.' },
-    fr: { title: 'CAPA assignée : {reference}', message: '{findingTitle} — action corrective requise.' },
+    en: {
+      title: 'CAPA assigned: {reference}',
+      message: '{findingTitle} — corrective action required.',
+    },
+    fr: {
+      title: 'CAPA assignée : {reference}',
+      message: '{findingTitle} — action corrective requise.',
+    },
   },
   CAPA_RETURNED: {
-    en: { title: 'CAPA returned for rework: {reference}', message: '{title} failed verification and requires rework.' },
-    fr: { title: 'CAPA retournée pour reprise : {reference}', message: '{title} a échoué à la vérification et nécessite une reprise.' },
+    en: {
+      title: 'CAPA returned for rework: {reference}',
+      message: '{title} failed verification and requires rework.',
+    },
+    fr: {
+      title: 'CAPA retournée pour reprise : {reference}',
+      message: '{title} a échoué à la vérification et nécessite une reprise.',
+    },
   },
   CAPA_VALIDATED: {
-    en: { title: 'CAPA validated: {reference}', message: '{title} passed verification and is now validated.' },
-    fr: { title: 'CAPA validée : {reference}', message: '{title} a réussi la vérification et est maintenant validée.' },
+    en: {
+      title: 'CAPA validated: {reference}',
+      message: '{title} passed verification and is now validated.',
+    },
+    fr: {
+      title: 'CAPA validée : {reference}',
+      message: '{title} a réussi la vérification et est maintenant validée.',
+    },
+  },
+  CAPA_ACTION_FAILED: {
+    en: {
+      title: 'Action rework required: {reference}',
+      message: 'Action "{actionTitle}" failed verification and requires rework.',
+    },
+    fr: {
+      title: 'Reprise requise : {reference}',
+      message: "L'action « {actionTitle} » a échoué à la vérification et nécessite une reprise.",
+    },
+  },
+  CAPA_ACTION_VERIFIED: {
+    en: {
+      title: 'Action verified: {reference}',
+      message: 'Action "{actionTitle}" passed verification.',
+    },
+    fr: {
+      title: 'Action vérifiée : {reference}',
+      message: "L'action « {actionTitle} » a réussi la vérification.",
+    },
   },
   CAPA_DUE: {
     en: { title: 'CAPA due soon: {reference}', message: '{title} is due {dueDate}.' },
-    fr: { title: 'CAPA à échéance proche : {reference}', message: '{title} est à rendre le {dueDate}.' },
+    fr: {
+      title: 'CAPA à échéance proche : {reference}',
+      message: '{title} est à rendre le {dueDate}.',
+    },
   },
   CAPA_OVERDUE: {
     en: { title: 'CAPA overdue: {reference}', message: '{title} is past its target date.' },
@@ -62,48 +106,152 @@ export const NOTIFICATION_TEMPLATES: NotificationTemplateCatalog = {
     fr: { title: 'Audit bientôt programmé : {title}', message: 'Prévu le {scheduledDate}.' },
   },
   AUDIT_OVERDUE: {
-    en: { title: 'Audit overdue: {title}', message: 'This audit was scheduled in the past and is not complete.' },
-    fr: { title: 'Audit en retard : {title}', message: "Cet audit était prévu dans le passé et n'est pas terminé." },
+    en: {
+      title: 'Audit overdue: {title}',
+      message: 'This audit was scheduled in the past and is not complete.',
+    },
+    fr: {
+      title: 'Audit en retard : {title}',
+      message: "Cet audit était prévu dans le passé et n'est pas terminé.",
+    },
   },
   DOCUMENT_AWAITING_APPROVAL: {
-    en: { title: 'Document awaiting approval: {code}', message: '{title} ({departmentName}) uploaded by a Pilot — review required.' },
-    fr: { title: 'Document en attente d\'approbation : {code}', message: '{title} ({departmentName}) déposé par un Pilote — vérification requise.' },
+    en: {
+      title: 'Document awaiting approval: {code}',
+      message: '{title} ({departmentName}) uploaded by a Pilot — review required.',
+    },
+    fr: {
+      title: "Document en attente d'approbation : {code}",
+      message: '{title} ({departmentName}) déposé par un Pilote — vérification requise.',
+    },
   },
   DOCUMENT_APPROVED: {
     en: (p) => ({
-      title: interpolate(`Document ${p.action === 'published' ? 'published' : 'approved'}: {code}`, p),
-      message: interpolate(`{title} has been ${p.action === 'published' ? 'published' : 'approved'} and is now available.`, p),
+      title: interpolate(
+        `Document ${p.action === 'published' ? 'published' : 'approved'}: {code}`,
+        p,
+      ),
+      message: interpolate(
+        `{title} has been ${p.action === 'published' ? 'published' : 'approved'} and is now available.`,
+        p,
+      ),
     }),
     fr: (p) => ({
-      title: interpolate(`Document ${p.action === 'published' ? 'publié' : 'approuvé'} : {code}`, p),
-      message: interpolate(`{title} a été ${p.action === 'published' ? 'publié' : 'approuvé'} et est maintenant disponible.`, p),
+      title: interpolate(
+        `Document ${p.action === 'published' ? 'publié' : 'approuvé'} : {code}`,
+        p,
+      ),
+      message: interpolate(
+        `{title} a été ${p.action === 'published' ? 'publié' : 'approuvé'} et est maintenant disponible.`,
+        p,
+      ),
     }),
   },
   DOCUMENT_REJECTED: {
-    en: { title: 'Document rejected: {code}', message: '{title} was rejected. Please review and resubmit.' },
-    fr: { title: 'Document rejeté : {code}', message: '{title} a été rejeté. Veuillez le revoir et le soumettre à nouveau.' },
+    en: {
+      title: 'Document rejected: {code}',
+      message: '{title} was rejected. Please review and resubmit.',
+    },
+    fr: {
+      title: 'Document rejeté : {code}',
+      message: '{title} a été rejeté. Veuillez le revoir et le soumettre à nouveau.',
+    },
   },
   DOCUMENT_REVIEW_OVERDUE: {
-    en: { title: 'Review overdue: {code}', message: '{title} is past its review date and needs re-review.' },
-    fr: { title: 'Révision en retard : {code}', message: '{title} a dépassé sa date de révision et doit être réexaminé.' },
+    en: {
+      title: 'Review overdue: {code}',
+      message: '{title} is past its review date and needs re-review.',
+    },
+    fr: {
+      title: 'Révision en retard : {code}',
+      message: '{title} a dépassé sa date de révision et doit être réexaminé.',
+    },
   },
   CERTIFICATE_EXPIRING: {
     en: (p) =>
       p.expired
-        ? { title: interpolate('Document EXPIRED: {code}', p), message: interpolate('{title} — {deptName} / {catName} — expired {expirationDate}. Renewal required.', p) }
-        : { title: interpolate('Document expiring in {days} days: {code}', p), message: interpolate('{title} — {deptName} / {catName} — expires {expirationDate}.', p) },
+        ? {
+            title: interpolate('Document EXPIRED: {code}', p),
+            message: interpolate(
+              '{title} — {deptName} / {catName} — expired {expirationDate}. Renewal required.',
+              p,
+            ),
+          }
+        : {
+            title: interpolate('Document expiring in {days} days: {code}', p),
+            message: interpolate('{title} — {deptName} / {catName} — expires {expirationDate}.', p),
+          },
     fr: (p) =>
       p.expired
-        ? { title: interpolate('Document EXPIRÉ : {code}', p), message: interpolate('{title} — {deptName} / {catName} — expiré le {expirationDate}. Renouvellement requis.', p) }
-        : { title: interpolate('Document expirant dans {days} jours : {code}', p), message: interpolate('{title} — {deptName} / {catName} — expire le {expirationDate}.', p) },
+        ? {
+            title: interpolate('Document EXPIRÉ : {code}', p),
+            message: interpolate(
+              '{title} — {deptName} / {catName} — expiré le {expirationDate}. Renouvellement requis.',
+              p,
+            ),
+          }
+        : {
+            title: interpolate('Document expirant dans {days} jours : {code}', p),
+            message: interpolate(
+              '{title} — {deptName} / {catName} — expire le {expirationDate}.',
+              p,
+            ),
+          },
   },
   KPI_THRESHOLD_EXCEEDED: {
-    en: { title: 'KPI threshold breached: {name}', message: 'Current {currentValue}{unit} crossed the critical threshold ({criticalThreshold}).' },
-    fr: { title: 'Seuil KPI dépassé : {name}', message: 'La valeur actuelle {currentValue}{unit} a franchi le seuil critique ({criticalThreshold}).' },
+    en: {
+      title: 'KPI threshold breached: {name}',
+      message: 'Current {currentValue}{unit} crossed the critical threshold ({criticalThreshold}).',
+    },
+    fr: {
+      title: 'Seuil KPI dépassé : {name}',
+      message:
+        'La valeur actuelle {currentValue}{unit} a franchi le seuil critique ({criticalThreshold}).',
+    },
+  },
+  INDICATOR_THRESHOLD_EXCEEDED: {
+    en: (p) =>
+      p.level === 'CRITICAL'
+        ? {
+            title: interpolate('Indicator critical: {name}', p),
+            message: interpolate(
+              'Current value {value}{unit} crossed the critical threshold ({threshold}).',
+              p,
+            ),
+          }
+        : {
+            title: interpolate('Indicator warning: {name}', p),
+            message: interpolate(
+              'Current value {value}{unit} crossed the warning threshold ({threshold}).',
+              p,
+            ),
+          },
+    fr: (p) =>
+      p.level === 'CRITICAL'
+        ? {
+            title: interpolate('Indicateur critique : {name}', p),
+            message: interpolate(
+              'La valeur actuelle {value}{unit} a franchi le seuil critique ({threshold}).',
+              p,
+            ),
+          }
+        : {
+            title: interpolate('Indicateur en alerte : {name}', p),
+            message: interpolate(
+              "La valeur actuelle {value}{unit} a franchi le seuil d'alerte ({threshold}).",
+              p,
+            ),
+          },
   },
   IMPORT_REQUIRES_REVIEW: {
-    en: { title: 'Import awaiting review: {name}', message: 'Imported files are waiting for review and approval.' },
-    fr: { title: 'Import en attente de vérification : {name}', message: 'Les fichiers importés attendent vérification et approbation.' },
+    en: {
+      title: 'Import awaiting review: {name}',
+      message: 'Imported files are waiting for review and approval.',
+    },
+    fr: {
+      title: 'Import en attente de vérification : {name}',
+      message: 'Les fichiers importés attendent vérification et approbation.',
+    },
   },
 };
 
@@ -115,10 +263,17 @@ export const NOTIFICATION_TEMPLATES: NotificationTemplateCatalog = {
  * present, so any templated type can carry an optional free-text remark
  * without every template having to declare its own notes placeholder.
  */
-export function renderNotification(type: string, locale: NotificationLocale, params: NotificationTemplateParams = {}): NotificationTemplateText | null {
+export function renderNotification(
+  type: string,
+  locale: NotificationLocale,
+  params: NotificationTemplateParams = {},
+): NotificationTemplateText | null {
   const entry = NOTIFICATION_TEMPLATES[type]?.[locale];
   if (!entry) return null;
-  const base = typeof entry === 'function' ? entry(params) : { title: interpolate(entry.title, params), message: interpolate(entry.message, params) };
+  const base =
+    typeof entry === 'function'
+      ? entry(params)
+      : { title: interpolate(entry.title, params), message: interpolate(entry.message, params) };
   if (params.notes) {
     // TECPAP terminology: "Notes" is used identically in French elsewhere in
     // the app (see apps/web/src/lib/i18n/dictionaries.ts: 'capa.notes').

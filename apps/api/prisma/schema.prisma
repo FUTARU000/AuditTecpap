@@ -90,6 +90,23 @@ enum FindingSeverity {
   MAJOR_NC
 }
 
+enum IndicatorFrequency {
+  MONTHLY
+  QUARTERLY
+  SEMIANNUAL
+  ANNUAL
+}
+
+/// How a value compares to its thresholds: a rate (HIGHER_IS_BETTER, e.g.
+/// compliance %), a defect/cost measure (LOWER_IS_BETTER), or a value that
+/// should stay close to an exact target in either direction (TARGET_BASED,
+/// where warning/criticalThreshold are the maximum allowed deviation).
+enum IndicatorDirection {
+  HIGHER_IS_BETTER
+  LOWER_IS_BETTER
+  TARGET_BASED
+}
+
 model User {
   id                     String          @id @default(uuid())
   email                  String          @unique
@@ -168,6 +185,11 @@ model User {
   documentCollections    DocumentCollection[]     @relation("UserDocumentCollections")
   documentBookmarks      DocumentBookmark[]       @relation("UserDocumentBookmarks")
 
+  // Indicators — a separate domain from the legacy Kpi model above (kept as-is).
+  indicatorsResponsible  Indicator[]              @relation("IndicatorResponsible")
+  indicatorsCreated      Indicator[]              @relation("IndicatorCreatedBy")
+  indicatorValuesRecorded IndicatorValue[]         @relation("IndicatorValueRecordedBy")
+
   // Soft delete only — never permanently removed.
   deletedAt              DateTime?
 
@@ -232,6 +254,7 @@ model Department {
   auditTemplates AuditTemplate[]
   audits      Audit[]
   capas          Capa[]            @relation("DepartmentCapas")
+  indicators  Indicator[]      @relation("DepartmentIndicators")
 
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
@@ -525,6 +548,75 @@ model Kpi {
   @@index([departmentId])
   @@index([status])
   @@map("kpis")
+}
+
+// =====================================================================
+// Indicators — TECPAP quality indicators. A separate domain from the
+// legacy Kpi model above, which is left untouched for its existing callers
+// (ReminderService, WorkspaceService). One definition + many historical
+// values; updating the definition never touches recorded values.
+// =====================================================================
+
+model Indicator {
+  id                String             @id @default(uuid())
+  code              String             @unique
+  name              String
+  description       String?
+  departmentId      String
+  department        Department         @relation("DepartmentIndicators", fields: [departmentId], references: [id])
+  category          String?
+  unit              String?
+  direction         IndicatorDirection @default(HIGHER_IS_BETTER)
+  target            Float?
+  warningThreshold  Float?
+  criticalThreshold Float?
+  frequency         IndicatorFrequency @default(MONTHLY)
+  responsibleUserId String?
+  responsible       User?              @relation("IndicatorResponsible", fields: [responsibleUserId], references: [id], onDelete: SetNull)
+  active            Boolean            @default(true)
+  createdById       String
+  createdBy         User               @relation("IndicatorCreatedBy", fields: [createdById], references: [id])
+
+  values            IndicatorValue[]
+
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@index([departmentId])
+  @@index([active])
+  @@index([category])
+  @@map("indicators")
+}
+
+/// One historical measurement. Never mutated by an Indicator update — this is
+/// the append-only audit trail of recorded values.
+///
+/// `year`/`periodMonth` are the deterministic period key the grid UI reads:
+/// periodMonth is always a calendar month (1-12), snapped to the frequency's
+/// representative month (e.g. QUARTERLY's Q3 is always periodMonth=9). There
+/// is deliberately no unique constraint on (indicatorId, year, periodMonth):
+/// recordValue() upserts by that key at the service layer instead, so a
+/// correction updates the existing period's row rather than stacking a
+/// duplicate — chosen because live historical data already predates this
+/// column pair and a DB-level constraint would reject it on migration.
+model IndicatorValue {
+  id           String    @id @default(uuid())
+  indicatorId  String
+  indicator    Indicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+  value        Float
+  year         Int
+  periodMonth  Int
+  measuredAt   DateTime
+  comment      String?
+  recordedById String?
+  recordedBy   User?     @relation("IndicatorValueRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([indicatorId, measuredAt])
+  @@index([indicatorId, year, periodMonth])
+  @@map("indicator_values")
 }
 
 /// A risk owned by a process. riskScore = probability × impact (1–5 each).

@@ -2,6 +2,8 @@ export * from './constants';
 export * from './permissions';
 export * from './roles';
 export * from './qms';
+export * from './indicators';
+export * from './name-normalization';
 export * from './business-objects';
 export * from './audits';
 export * from './capa';

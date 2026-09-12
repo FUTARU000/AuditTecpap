@@ -12,6 +12,7 @@ export * from './document.dto';
 export * from './document-version.dto';
 export * from './document-relation.dto';
 export * from './dashboard.dto';
+export * from './indicator.dto';
 export * from './business-object.dto';
 export * from './activity-timeline.dto';
 export * from './business-relationship.dto';

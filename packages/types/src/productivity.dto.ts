@@ -22,9 +22,12 @@ export type NotificationType =
   | 'CAPA_RETURNED'
   | 'CAPA_VERIFIED'
   | 'CAPA_VALIDATED'
+  | 'CAPA_ACTION_FAILED'
+  | 'CAPA_ACTION_VERIFIED'
   | 'RISK_CREATED'
   | 'RISK_SCORE_INCREASED'
   | 'KPI_THRESHOLD_EXCEEDED'
+  | 'INDICATOR_THRESHOLD_EXCEEDED'
   | 'CERTIFICATE_EXPIRING'
   | 'IMPORT_COMPLETED'
   | 'IMPORT_REQUIRES_REVIEW'
@@ -97,12 +100,39 @@ export interface ReportSubscriptionDto {
 }
 
 export interface WorkspaceDto {
-  audits: { id: string; title: string; status: string; scheduledDate: string | null; href: string }[];
-  capas: { id: string; title: string; status: string; targetDate: string | null; priority: string; href: string }[];
+  audits: {
+    id: string;
+    title: string;
+    status: string;
+    scheduledDate: string | null;
+    href: string;
+  }[];
+  capas: {
+    id: string;
+    title: string;
+    status: string;
+    targetDate: string | null;
+    priority: string;
+    href: string;
+  }[];
   findings: { id: string; title: string; severity: string; status: string; href: string }[];
-  pendingApprovals: { id: string; title: string; code: string; status: string; type: string; href: string }[];
+  pendingApprovals: {
+    id: string;
+    title: string;
+    code: string;
+    status: string;
+    type: string;
+    href: string;
+  }[];
   imports: { id: string; name: string; status: string; pending: number; href: string }[];
-  kpis: { id: string; name: string; currentValue: number | null; target: number | null; unit: string | null; href: string }[];
+  kpis: {
+    id: string;
+    name: string;
+    currentValue: number | null;
+    target: number | null;
+    unit: string | null;
+    href: string;
+  }[];
   upcomingDeadlines: { title: string; date: string; type: string; href: string }[];
   unreadNotifications: number;
   openTasks: number;

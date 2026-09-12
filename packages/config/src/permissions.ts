@@ -28,11 +28,23 @@ export const PERMISSION_CATALOG: PermissionGroup[] = [
       { key: 'users.read', label: 'View users', description: 'List and open user profiles' },
       { key: 'users.create', label: 'Create users', description: 'Invite new users' },
       { key: 'users.update', label: 'Edit users', description: 'Update user details' },
-      { key: 'users.delete', label: 'Deactivate users', description: 'Soft-delete (never permanent)' },
-      { key: 'users.reset_password', label: 'Reset passwords', description: 'Force a password reset' },
+      {
+        key: 'users.delete',
+        label: 'Deactivate users',
+        description: 'Soft-delete (never permanent)',
+      },
+      {
+        key: 'users.reset_password',
+        label: 'Reset passwords',
+        description: 'Force a password reset',
+      },
       { key: 'users.activate', label: 'Activate / deactivate', description: 'Change user status' },
       { key: 'users.assign_role', label: 'Assign roles', description: 'Change a user role' },
-      { key: 'users.assign_department', label: 'Assign departments', description: 'Move users between departments' },
+      {
+        key: 'users.assign_department',
+        label: 'Assign departments',
+        description: 'Move users between departments',
+      },
     ],
   },
   {
@@ -42,7 +54,11 @@ export const PERMISSION_CATALOG: PermissionGroup[] = [
       { key: 'roles.create', label: 'Create roles' },
       { key: 'roles.update', label: 'Edit roles' },
       { key: 'roles.delete', label: 'Delete roles' },
-      { key: 'roles.assign_permissions', label: 'Assign permissions', description: 'Edit a role permission set' },
+      {
+        key: 'roles.assign_permissions',
+        label: 'Assign permissions',
+        description: 'Edit a role permission set',
+      },
     ],
   },
   {
@@ -87,11 +103,31 @@ export const PERMISSION_CATALOG: PermissionGroup[] = [
       { key: 'documents.create', label: 'Create documents' },
       { key: 'documents.update', label: 'Edit documents' },
       { key: 'documents.delete', label: 'Delete documents' },
-      { key: 'documents.upload_version', label: 'Upload new versions', description: 'Attach a file as a new immutable version' },
-      { key: 'documents.approve_version', label: 'Approve versions', description: 'Mark a version approved' },
-      { key: 'documents.manage_relations', label: 'Manage relationships', description: 'Link documents (uses/generates/references/…)' },
-      { key: 'documents.approve', label: 'Approve documents', description: 'Move a document to Approved' },
-      { key: 'documents.publish', label: 'Publish documents', description: 'Move a document to Published' },
+      {
+        key: 'documents.upload_version',
+        label: 'Upload new versions',
+        description: 'Attach a file as a new immutable version',
+      },
+      {
+        key: 'documents.approve_version',
+        label: 'Approve versions',
+        description: 'Mark a version approved',
+      },
+      {
+        key: 'documents.manage_relations',
+        label: 'Manage relationships',
+        description: 'Link documents (uses/generates/references/…)',
+      },
+      {
+        key: 'documents.approve',
+        label: 'Approve documents',
+        description: 'Move a document to Approved',
+      },
+      {
+        key: 'documents.publish',
+        label: 'Publish documents',
+        description: 'Move a document to Published',
+      },
       { key: 'documents.archive', label: 'Archive documents' },
       { key: 'documents.restore', label: 'Restore documents' },
     ],
@@ -143,8 +179,16 @@ export const PERMISSION_CATALOG: PermissionGroup[] = [
       { key: 'capas.effectiveness_review', label: 'Perform effectiveness review' },
       { key: 'capas.close', label: 'Close CAPAs' },
       { key: 'capas.export', label: 'Export CAPA reports' },
-      { key: 'capas.submit', label: 'Submit CAPA for verification', description: 'Pilot submits corrective action work for Audit Manager review' },
-      { key: 'capas.rework', label: 'Respond to CAPA rework', description: 'Pilot reworks after return from verification' },
+      {
+        key: 'capas.submit',
+        label: 'Submit CAPA for verification',
+        description: 'Pilot submits corrective action work for Audit Manager review',
+      },
+      {
+        key: 'capas.rework',
+        label: 'Respond to CAPA rework',
+        description: 'Pilot reworks after return from verification',
+      },
     ],
   },
   {
@@ -175,6 +219,29 @@ export const PERMISSION_CATALOG: PermissionGroup[] = [
     ],
   },
   {
+    group: 'Indicators',
+    permissions: [
+      {
+        key: 'indicators.read',
+        label: 'View indicators',
+        description: 'List and open quality indicators',
+      },
+      { key: 'indicators.create', label: 'Create indicators' },
+      {
+        key: 'indicators.update',
+        label: 'Edit indicators',
+        description:
+          'Edit definition: department, thresholds, frequency, responsible user, active status',
+      },
+      {
+        key: 'indicators.values.create',
+        label: 'Record indicator values',
+        description: 'Add or correct a measured value',
+      },
+      { key: 'indicators.values.read', label: 'View indicator value history' },
+    ],
+  },
+  {
     group: 'Process risks',
     permissions: [
       { key: 'risks.read', label: 'View process risks' },
@@ -186,11 +253,31 @@ export const PERMISSION_CATALOG: PermissionGroup[] = [
   {
     group: 'Import',
     permissions: [
-      { key: 'imports.read', label: 'View import jobs & review queue', description: 'List jobs, items and statistics (department-scoped)' },
-      { key: 'imports.start', label: 'Start import jobs', description: 'Scan a folder / upload files into an import job' },
-      { key: 'imports.review', label: 'Review imports', description: 'Approve, reject, merge or replace versions' },
-      { key: 'imports.cancel', label: 'Cancel / retry / delete jobs', description: 'Manage job lifecycle' },
-      { key: 'imports.stats', label: 'View import statistics', description: 'Roll-up import dashboard metrics' },
+      {
+        key: 'imports.read',
+        label: 'View import jobs & review queue',
+        description: 'List jobs, items and statistics (department-scoped)',
+      },
+      {
+        key: 'imports.start',
+        label: 'Start import jobs',
+        description: 'Scan a folder / upload files into an import job',
+      },
+      {
+        key: 'imports.review',
+        label: 'Review imports',
+        description: 'Approve, reject, merge or replace versions',
+      },
+      {
+        key: 'imports.cancel',
+        label: 'Cancel / retry / delete jobs',
+        description: 'Manage job lifecycle',
+      },
+      {
+        key: 'imports.stats',
+        label: 'View import statistics',
+        description: 'Roll-up import dashboard metrics',
+      },
     ],
   },
   {

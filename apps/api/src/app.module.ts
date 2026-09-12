@@ -23,6 +23,7 @@ import { DocumentCategoriesModule } from './modules/document-categories/document
 import { DocumentsModule } from './modules/documents/documents.module';
 import { HealthModule } from './modules/health/health.module';
 import { ImportModule } from './modules/import/import.module';
+import { IndicatorsModule } from './modules/indicators/indicators.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
 import { ProductivityModule } from './modules/productivity/productivity.module';
 import { PrismaModule } from './modules/prisma/prisma.module';
@@ -66,6 +67,7 @@ import { UsersModule } from './modules/users/users.module';
     DocumentsModule,
     DashboardModule,
     ImportModule,
+    IndicatorsModule,
     ActivityTimelineModule,
     BusinessObjectsModule,
     SearchModule,
