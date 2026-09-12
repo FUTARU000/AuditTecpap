@@ -8,16 +8,37 @@ import type { CapaDto, DepartmentDto, PaginatedResult } from '@tecpap/types';
 import { Badge, Button, Input, Label } from '@tecpap/ui';
 import { api, RequestError } from '@/lib/api';
 import { useTranslation } from '@/lib/i18n';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { DatePicker } from '@/components/ui/date-picker';
 import { EmptyState, ErrorState, PageHeader } from '@/components/admin/common';
 
 const STATUS_TONE: Record<string, 'secondary' | 'warning' | 'success' | 'danger' | 'outline'> = {
-  DRAFT: 'secondary', ROOT_CAUSE_ANALYSIS: 'secondary', ACTION_PLAN: 'secondary', IN_PROGRESS: 'warning',
-  PENDING_VERIFICATION: 'outline', PENDING_EFFECTIVENESS: 'outline', CLOSED: 'success', CANCELLED: 'danger',
-  ASSIGNED: 'secondary', EVIDENCE_UPLOADED: 'outline', RETURNED: 'danger', VALIDATED: 'success',
+  DRAFT: 'secondary',
+  ROOT_CAUSE_ANALYSIS: 'secondary',
+  ACTION_PLAN: 'secondary',
+  IN_PROGRESS: 'warning',
+  PENDING_VERIFICATION: 'outline',
+  PENDING_EFFECTIVENESS: 'outline',
+  CLOSED: 'success',
+  CANCELLED: 'danger',
+  ASSIGNED: 'secondary',
+  EVIDENCE_UPLOADED: 'outline',
+  RETURNED: 'danger',
+  VALIDATED: 'success',
 };
 
 export default function CapasPage() {
@@ -30,64 +51,215 @@ export default function CapasPage() {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState({ title: '', description: '', departmentId: '', priority: 'MEDIUM', targetDate: '' });
+  const [form, setForm] = useState({
+    title: '',
+    description: '',
+    departmentId: '',
+    priority: 'MEDIUM',
+    targetDate: '',
+  });
   const [saving, setSaving] = useState(false);
 
   const fetchCapas = useCallback(async () => {
-    setLoading(true); setError(null);
+    setLoading(true);
+    setError(null);
     try {
-      const params: Record<string, string | undefined> = { pageSize: '50', search: search.trim() || undefined };
+      const params: Record<string, string | undefined> = {
+        pageSize: '50',
+        search: search.trim() || undefined,
+      };
       if (statusFilter !== 'ALL') params.status = statusFilter;
       if (overdueOnly) params.overdue = 'true';
       setCapas(await api.get<PaginatedResult<CapaDto>>('/capas', params));
-    } catch (err) { setError(err instanceof RequestError ? err.message : t('capa.failed_load')); }
-    finally { setLoading(false); }
+    } catch (err) {
+      setError(err instanceof RequestError ? err.message : t('capa.failed_load'));
+    } finally {
+      setLoading(false);
+    }
   }, [search, statusFilter, overdueOnly, t]);
 
   useEffect(() => {
     void fetchCapas();
-    api.get<PaginatedResult<DepartmentDto>>('/departments', { pageSize: 100 }).then((r) => setDepartments(r.items)).catch(() => undefined);
+    api
+      .get<PaginatedResult<DepartmentDto>>('/departments', { pageSize: 100 })
+      .then((r) => setDepartments(r.items))
+      .catch(() => undefined);
   }, [fetchCapas]);
 
   async function save() {
     setSaving(true);
     try {
-      await api.post('/capas', { title: form.title, description: form.description || null, departmentId: form.departmentId, priority: form.priority, targetDate: form.targetDate || undefined, sourceType: 'MANUAL' });
-      toast.success(t('capa.created')); setDialogOpen(false); setForm({ title: '', description: '', departmentId: departments[0]?.id ?? '', priority: 'MEDIUM', targetDate: '' }); await fetchCapas();
-    } catch (err) { toast.error(err instanceof RequestError ? err.message : t('capa.create_failed')); }
-    finally { setSaving(false); }
+      await api.post('/capas', {
+        title: form.title,
+        description: form.description || null,
+        departmentId: form.departmentId,
+        priority: form.priority,
+        targetDate: form.targetDate || undefined,
+        sourceType: 'MANUAL',
+      });
+      toast.success(t('capa.created'));
+      setDialogOpen(false);
+      setForm({
+        title: '',
+        description: '',
+        departmentId: departments[0]?.id ?? '',
+        priority: 'MEDIUM',
+        targetDate: '',
+      });
+      await fetchCapas();
+    } catch (err) {
+      if (err instanceof RequestError && err.code === 'CAPA_DUPLICATE_NAME')
+        toast.error(t('errors.duplicate_capa_name'));
+      else toast.error(err instanceof RequestError ? err.message : t('capa.create_failed'));
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
-      <PageHeader title={t('capa.title')} description={t('capa.description')} action={<Button onClick={() => { setForm({ title: '', description: '', departmentId: departments[0]?.id ?? '', priority: 'MEDIUM', targetDate: '' }); setDialogOpen(true); }}><PlusCircle className="size-4" /> {t('capa.new')}</Button>} />
+      <PageHeader
+        title={t('capa.title')}
+        description={t('capa.description')}
+        action={
+          <Button
+            onClick={() => {
+              setForm({
+                title: '',
+                description: '',
+                departmentId: departments[0]?.id ?? '',
+                priority: 'MEDIUM',
+                targetDate: '',
+              });
+              setDialogOpen(true);
+            }}
+          >
+            <PlusCircle className="size-4" /> {t('capa.new')}
+          </Button>
+        }
+      />
       <div className="flex flex-col gap-3 sm:flex-row">
-        <div className="relative flex-1"><Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input placeholder={t('common.search', 'Search')} className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}><SelectTrigger className="sm:w-48"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ALL">{t('filter.all_statuses')}</SelectItem>{['ASSIGNED', 'IN_PROGRESS', 'EVIDENCE_UPLOADED', 'PENDING_VERIFICATION', 'RETURNED', 'VALIDATED', 'CLOSED', 'CANCELLED', 'DRAFT', 'ROOT_CAUSE_ANALYSIS', 'ACTION_PLAN', 'PENDING_EFFECTIVENESS'].map((s) => <SelectItem key={s} value={s}>{t(`capa.status.${s}`, t(`status.${s}`, s))}</SelectItem>)}</SelectContent></Select>
-        <Button variant={overdueOnly ? 'default' : 'outline'} size="sm" onClick={() => setOverdueOnly((v) => !v)}>{t('capa.overdue')}</Button>
+        <div className="relative flex-1">
+          <Search className="text-muted-foreground pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2" />
+          <Input
+            placeholder={t('common.search', 'Search')}
+            className="pl-8"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="sm:w-48">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">{t('filter.all_statuses')}</SelectItem>
+            {[
+              'ASSIGNED',
+              'IN_PROGRESS',
+              'EVIDENCE_UPLOADED',
+              'PENDING_VERIFICATION',
+              'RETURNED',
+              'VALIDATED',
+              'CLOSED',
+              'CANCELLED',
+              'DRAFT',
+              'ROOT_CAUSE_ANALYSIS',
+              'ACTION_PLAN',
+              'PENDING_EFFECTIVENESS',
+            ].map((s) => (
+              <SelectItem key={s} value={s}>
+                {t(`capa.status.${s}`, t(`status.${s}`, s))}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          variant={overdueOnly ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setOverdueOnly((v) => !v)}
+        >
+          {t('capa.overdue')}
+        </Button>
       </div>
-      <div className="overflow-hidden rounded-lg border border-border bg-card">
-        {error ? <ErrorState message={error} onRetry={() => void fetchCapas()} /> : loading ? (
-          <div className="space-y-2 p-4">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-10 animate-pulse rounded-md bg-muted" />)}</div>
-        ) : !capas || capas.items.length === 0 ? <EmptyState title={t('capa.no_capas')} /> : (
+      <div className="border-border bg-card overflow-hidden rounded-lg border">
+        {error ? (
+          <ErrorState message={error} onRetry={() => void fetchCapas()} />
+        ) : loading ? (
+          <div className="space-y-2 p-4">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="bg-muted h-10 animate-pulse rounded-md" />
+            ))}
+          </div>
+        ) : !capas || capas.items.length === 0 ? (
+          <EmptyState title={t('capa.no_capas')} />
+        ) : (
           <table className="w-full text-sm">
-            <thead className="border-b border-border bg-muted/50"><tr>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('capa.reference')}</th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('common.title')}</th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('table.department')}</th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('table.status')}</th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('capa.priority')}</th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('common.actions')}</th>
-            </tr></thead>
-            <tbody className="divide-y divide-border">
+            <thead className="border-border bg-muted/50 border-b">
+              <tr>
+                <th className="text-muted-foreground px-4 py-3 text-left text-xs font-medium uppercase tracking-wide">
+                  {t('capa.reference')}
+                </th>
+                <th className="text-muted-foreground px-4 py-3 text-left text-xs font-medium uppercase tracking-wide">
+                  {t('common.title')}
+                </th>
+                <th className="text-muted-foreground px-4 py-3 text-left text-xs font-medium uppercase tracking-wide">
+                  {t('table.department')}
+                </th>
+                <th className="text-muted-foreground px-4 py-3 text-left text-xs font-medium uppercase tracking-wide">
+                  {t('table.status')}
+                </th>
+                <th className="text-muted-foreground px-4 py-3 text-left text-xs font-medium uppercase tracking-wide">
+                  {t('capa.priority')}
+                </th>
+                <th className="text-muted-foreground px-4 py-3 text-left text-xs font-medium uppercase tracking-wide">
+                  {t('common.actions')}
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-border divide-y">
               {capas.items.map((capa) => (
                 <tr key={capa.id} className="hover:bg-accent/40">
-                  <td className="px-4 py-3"><Badge variant="outline" className="font-mono text-xs">{capa.referenceNumber}</Badge>{capa.isOverdue ? <Badge variant="danger" className="ml-1 text-[10px]">!</Badge> : null}</td>
-                  <td className="px-4 py-3"><Link href={`/capas/${capa.id}`} className="font-medium text-foreground hover:underline">{capa.title}</Link></td>
-                  <td className="px-4 py-3 text-muted-foreground">{capa.departmentName ?? '—'}</td>
-                  <td className="px-4 py-3"><Badge variant={STATUS_TONE[capa.status] ?? 'secondary'}>{t(`capa.status.${capa.status}`, t(`status.${capa.status}`, capa.status))}</Badge></td>
-                  <td className="px-4 py-3"><Badge variant={capa.priority === 'CRITICAL' ? 'danger' : capa.priority === 'HIGH' ? 'warning' : 'secondary'}>{t(`priority.${capa.priority}`, capa.priority)}</Badge></td>
-                  <td className="px-4 py-3 text-muted-foreground">{capa.completedActionCount}/{capa.actionCount}</td>
+                  <td className="px-4 py-3">
+                    <Badge variant="outline" className="font-mono text-xs">
+                      {capa.referenceNumber}
+                    </Badge>
+                    {capa.isOverdue ? (
+                      <Badge variant="danger" className="ml-1 text-[10px]">
+                        !
+                      </Badge>
+                    ) : null}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Link
+                      href={`/capas/${capa.id}`}
+                      className="text-foreground font-medium hover:underline"
+                    >
+                      {capa.title}
+                    </Link>
+                  </td>
+                  <td className="text-muted-foreground px-4 py-3">{capa.departmentName ?? '—'}</td>
+                  <td className="px-4 py-3">
+                    <Badge variant={STATUS_TONE[capa.status] ?? 'secondary'}>
+                      {t(`capa.status.${capa.status}`, t(`status.${capa.status}`, capa.status))}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3">
+                    <Badge
+                      variant={
+                        capa.priority === 'CRITICAL'
+                          ? 'danger'
+                          : capa.priority === 'HIGH'
+                            ? 'warning'
+                            : 'secondary'
+                      }
+                    >
+                      {t(`priority.${capa.priority}`, capa.priority)}
+                    </Badge>
+                  </td>
+                  <td className="text-muted-foreground px-4 py-3">
+                    {capa.completedActionCount}/{capa.actionCount}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -96,15 +268,85 @@ export default function CapasPage() {
       </div>
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>{t('capa.new')} CAPA</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>{t('capa.new')} CAPA</DialogTitle>
+          </DialogHeader>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="flex flex-col gap-2 sm:col-span-2"><Label htmlFor="c-title">{t('common.title', 'Title')}</Label><Input id="c-title" value={form.title} onChange={(e) => setForm((c) => ({ ...c, title: e.target.value }))} /></div>
-            <div className="flex flex-col gap-2"><Label>{t('common.department', 'Department')}</Label><Select value={form.departmentId} onValueChange={(v) => setForm((c) => ({ ...c, departmentId: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent></Select></div>
-            <div className="flex flex-col gap-2"><Label>{t('capa.priority')}</Label><Select value={form.priority} onValueChange={(v) => setForm((c) => ({ ...c, priority: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].map((p) => <SelectItem key={p} value={p}>{t(`priority.${p}`, p)}</SelectItem>)}</SelectContent></Select></div>
-            <div className="flex flex-col gap-2"><Label htmlFor="c-date">{t('capa.target_date')}</Label><DatePicker id="c-date" value={form.targetDate || null} minDate={new Date().toISOString().slice(0, 10)} onChange={(v) => setForm((c) => ({ ...c, targetDate: v ?? '' }))} placeholder="Select target date" /></div>
-            <div className="flex flex-col gap-2 sm:col-span-2"><Label htmlFor="c-desc">{t('common.description', 'Description')}</Label><Textarea id="c-desc" value={form.description} onChange={(e) => setForm((c) => ({ ...c, description: e.target.value }))} /></div>
+            <div className="flex flex-col gap-2 sm:col-span-2">
+              <Label htmlFor="c-title">{t('common.title', 'Title')}</Label>
+              <Input
+                id="c-title"
+                value={form.title}
+                onChange={(e) => setForm((c) => ({ ...c, title: e.target.value }))}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label>{t('common.department', 'Department')}</Label>
+              <Select
+                value={form.departmentId}
+                onValueChange={(v) => setForm((c) => ({ ...c, departmentId: v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {departments.map((d) => (
+                    <SelectItem key={d.id} value={d.id}>
+                      {d.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label>{t('capa.priority')}</Label>
+              <Select
+                value={form.priority}
+                onValueChange={(v) => setForm((c) => ({ ...c, priority: v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {t(`priority.${p}`, p)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="c-date">{t('capa.target_date')}</Label>
+              <DatePicker
+                id="c-date"
+                value={form.targetDate || null}
+                minDate={new Date().toISOString().slice(0, 10)}
+                onChange={(v) => setForm((c) => ({ ...c, targetDate: v ?? '' }))}
+                placeholder="Select target date"
+              />
+            </div>
+            <div className="flex flex-col gap-2 sm:col-span-2">
+              <Label htmlFor="c-desc">{t('common.description', 'Description')}</Label>
+              <Textarea
+                id="c-desc"
+                value={form.description}
+                onChange={(e) => setForm((c) => ({ ...c, description: e.target.value }))}
+              />
+            </div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setDialogOpen(false)}>{t('common.cancel', 'Cancel')}</Button><Button onClick={() => void save()} disabled={saving || !form.title || !form.departmentId}>{saving ? <Loader2 className="size-4 animate-spin" /> : null}{t('common.create', 'Create')}</Button></DialogFooter>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              {t('common.cancel', 'Cancel')}
+            </Button>
+            <Button
+              onClick={() => void save()}
+              disabled={saving || !form.title || !form.departmentId}
+            >
+              {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+              {t('common.create', 'Create')}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

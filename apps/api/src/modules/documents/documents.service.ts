@@ -1,4 +1,5 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { normalizeName } from '@tecpap/config';
 import type { GlobalSearchResultDto } from '@tecpap/types';
 import {
   AUDIT_ACTIONS,
@@ -36,7 +37,10 @@ export class DocumentsService {
     private readonly notifications: NotificationService,
   ) {}
 
-  async list(query: ListDocumentsQuery, scope: DataScope | undefined): Promise<PaginatedResult<DocumentDto>> {
+  async list(
+    query: ListDocumentsQuery,
+    scope: DataScope | undefined,
+  ): Promise<PaginatedResult<DocumentDto>> {
     const { skip, take, page, pageSize, sort, search } = parsePagination(query);
     const base: Prisma.ControlledDocumentWhereInput = {
       deletedAt: null,
@@ -47,10 +51,18 @@ export class DocumentsService {
       ...(query.ownerId ? { ownerId: query.ownerId } : {}),
       ...(search
         ? {
+            // Smart search: matches title/code exactly as before, plus
+            // description, category name, and department name — so "quality"
+            // finds a document whose category is Quality, and "production"
+            // finds documents belonging to the Production department, not
+            // just documents with those words literally in the title.
             OR: [
               { title: { contains: search, mode: 'insensitive' } },
               { code: { contains: search, mode: 'insensitive' } },
               { keywords: { has: search } },
+              { description: { contains: search, mode: 'insensitive' } },
+              { category: { name: { contains: search, mode: 'insensitive' } } },
+              { department: { name: { contains: search, mode: 'insensitive' } } },
             ],
           }
         : {}),
@@ -62,13 +74,20 @@ export class DocumentsService {
         where,
         skip,
         take,
-        orderBy: parseSort(sort, ['title', 'code', 'status', 'createdAt', 'updatedAt'], { updatedAt: 'desc' }),
+        orderBy: parseSort(sort, ['title', 'code', 'status', 'createdAt', 'updatedAt'], {
+          updatedAt: 'desc',
+        }),
         include: DOC_INCLUDE,
       }),
       this.prisma.controlledDocument.count({ where }),
     ]);
 
-    return paginated(rows.map((row) => toDocumentDto(row)), total, page, pageSize);
+    return paginated(
+      rows.map((row) => toDocumentDto(row)),
+      total,
+      page,
+      pageSize,
+    );
   }
 
   /** PostgreSQL full-text search over title/code/description/keywords. */
@@ -117,7 +136,10 @@ export class DocumentsService {
 
   /** Dynamic Department → Process → Category tree with document counts. */
   async tree(scope: DataScope | undefined): Promise<DocumentTreeNode[]> {
-    const where = { deletedAt: null, ...departmentScopeWhere(scope) } as Prisma.ControlledDocumentWhereInput;
+    const where = {
+      deletedAt: null,
+      ...departmentScopeWhere(scope),
+    } as Prisma.ControlledDocumentWhereInput;
     const combos = await this.prisma.controlledDocument.groupBy({
       by: ['departmentId', 'processId', 'categoryId'],
       where,
@@ -134,7 +156,10 @@ export class DocumentsService {
         where: { deletedAt: null, ...departmentScopeWhere(scope) },
         select: { id: true, name: true, code: true, departmentId: true },
       }),
-      this.prisma.documentCategory.findMany({ where: { active: true }, select: { id: true, name: true, code: true } }),
+      this.prisma.documentCategory.findMany({
+        where: { active: true },
+        select: { id: true, name: true, code: true },
+      }),
     ]);
 
     const processById = new Map(processes.map((process) => [process.id, process]));
@@ -145,8 +170,14 @@ export class DocumentsService {
     const departmentCount = new Map<string, number>();
     for (const combo of combos) {
       const key = `${combo.processId ?? 'none'}::${combo.categoryId}`;
-      processCategoryCount.set(key, (processCategoryCount.get(key) ?? 0) + (combo._count._all ?? 0));
-      departmentCount.set(combo.departmentId, (departmentCount.get(combo.departmentId) ?? 0) + (combo._count._all ?? 0));
+      processCategoryCount.set(
+        key,
+        (processCategoryCount.get(key) ?? 0) + (combo._count._all ?? 0),
+      );
+      departmentCount.set(
+        combo.departmentId,
+        (departmentCount.get(combo.departmentId) ?? 0) + (combo._count._all ?? 0),
+      );
     }
 
     return departments
@@ -194,6 +225,7 @@ export class DocumentsService {
 
   async create(dto: CreateDocumentDto, actor: ActorContext): Promise<DocumentDto> {
     await this.assertRelations(dto.departmentId, dto.categoryId, dto.processId);
+    await this.assertUniqueTitle(dto.title);
 
     // Business rule: expiry date must be >= effective date when both are provided
     if (dto.effectiveDate && dto.expirationDate) {
@@ -206,13 +238,19 @@ export class DocumentsService {
 
     // TECPAP rule: Audit Manager uploads are immediately APPROVED.
     // Pilot uploads start as DRAFT (Pending Approval) and require Manager review.
-    const uploader = actor.actorId ? await this.prisma.user.findUnique({ where: { id: actor.actorId }, select: { role: { select: { isGlobal: true } } } }) : null;
+    const uploader = actor.actorId
+      ? await this.prisma.user.findUnique({
+          where: { id: actor.actorId },
+          select: { role: { select: { isGlobal: true } } },
+        })
+      : null;
     const isQualityAuthority = !!uploader?.role?.isGlobal;
     const initialStatus: DocumentStatus = isQualityAuthority ? 'APPROVED' : 'DRAFT';
 
     const doc = await this.prisma.controlledDocument.create({
       data: {
         title: dto.title,
+        normalizedTitle: normalizeName(dto.title),
         code: dto.code,
         description: dto.description ?? null,
         departmentId: dto.departmentId,
@@ -232,7 +270,10 @@ export class DocumentsService {
       include: DOC_INCLUDE,
     });
 
-    await this.audit(actor, AUDIT_ACTIONS.DOCUMENT_CREATE, doc.id, { code: doc.code, initialStatus });
+    await this.audit(actor, AUDIT_ACTIONS.DOCUMENT_CREATE, doc.id, {
+      code: doc.code,
+      initialStatus,
+    });
 
     // Notify Audit Managers when a Pilot uploads a document pending approval
     if (!isQualityAuthority) {
@@ -243,28 +284,40 @@ export class DocumentsService {
   }
 
   /** Notify all global-role users (Audit Managers) that a document awaits approval. */
-  private async notifyPendingApproval(doc: { id: string; title: string; code: string; departmentId: string }, actor: ActorContext): Promise<void> {
-    const managers = (await this.prisma.user.findMany({
-      where: { role: { isGlobal: true }, status: 'ACTIVE', deletedAt: null },
-      select: { id: true },
-    })) ?? [];
-    const dept = await this.prisma.department.findUnique({ where: { id: doc.departmentId }, select: { name: true } });
+  private async notifyPendingApproval(
+    doc: { id: string; title: string; code: string; departmentId: string },
+    actor: ActorContext,
+  ): Promise<void> {
+    const managers =
+      (await this.prisma.user.findMany({
+        where: { role: { isGlobal: true }, status: 'ACTIVE', deletedAt: null },
+        select: { id: true },
+      })) ?? [];
+    const dept = await this.prisma.department.findUnique({
+      where: { id: doc.departmentId },
+      select: { name: true },
+    });
     for (const m of managers) {
-      await this.notifications.emit({
-        userId: m.id,
-        type: 'DOCUMENT_AWAITING_APPROVAL',
-        category: 'document',
-        severity: 'INFO',
-        params: { code: doc.code, title: doc.title, departmentName: dept?.name ?? '—' },
-        entityType: 'document',
-        entityId: doc.id,
-        actionUrl: `/documents/${doc.id}`,
-      }).catch(() => undefined);
+      await this.notifications
+        .emit({
+          userId: m.id,
+          type: 'DOCUMENT_AWAITING_APPROVAL',
+          category: 'document',
+          severity: 'INFO',
+          params: { code: doc.code, title: doc.title, departmentName: dept?.name ?? '—' },
+          entityType: 'document',
+          entityId: doc.id,
+          actionUrl: `/documents/${doc.id}`,
+        })
+        .catch(() => undefined);
     }
   }
 
   async update(id: string, dto: UpdateDocumentDto, actor: ActorContext): Promise<DocumentDto> {
-    const current = await this.prisma.controlledDocument.findFirst({ where: { id, deletedAt: null }, include: DOC_INCLUDE });
+    const current = await this.prisma.controlledDocument.findFirst({
+      where: { id, deletedAt: null },
+      include: DOC_INCLUDE,
+    });
     if (!current) {
       throw new NotFoundException('Document not found');
     }
@@ -272,12 +325,16 @@ export class DocumentsService {
       await this.assertRelations(
         dto.departmentId ?? current.departmentId,
         dto.categoryId ?? current.categoryId,
-        dto.processId === undefined ? current.processId ?? undefined : dto.processId || undefined,
+        dto.processId === undefined ? (current.processId ?? undefined) : dto.processId || undefined,
       );
     }
+    if (dto.title !== undefined) await this.assertUniqueTitle(dto.title, id);
 
     const data: Prisma.ControlledDocumentUncheckedUpdateInput = {};
-    if (dto.title !== undefined) data.title = dto.title;
+    if (dto.title !== undefined) {
+      data.title = dto.title;
+      data.normalizedTitle = normalizeName(dto.title);
+    }
     if (dto.code !== undefined) data.code = dto.code;
     if (dto.description !== undefined) data.description = dto.description;
     if (dto.departmentId !== undefined) data.departmentId = dto.departmentId;
@@ -288,9 +345,12 @@ export class DocumentsService {
     if (dto.approverId !== undefined) data.approverId = dto.approverId;
     if (dto.keywords !== undefined) data.keywords = dto.keywords;
     if (dto.confidentiality !== undefined) data.confidentiality = dto.confidentiality;
-    if (dto.effectiveDate !== undefined) data.effectiveDate = dto.effectiveDate ? new Date(dto.effectiveDate) : null;
-    if (dto.reviewDate !== undefined) data.reviewDate = dto.reviewDate ? new Date(dto.reviewDate) : null;
-    if (dto.expirationDate !== undefined) data.expirationDate = dto.expirationDate ? new Date(dto.expirationDate) : null;
+    if (dto.effectiveDate !== undefined)
+      data.effectiveDate = dto.effectiveDate ? new Date(dto.effectiveDate) : null;
+    if (dto.reviewDate !== undefined)
+      data.reviewDate = dto.reviewDate ? new Date(dto.reviewDate) : null;
+    if (dto.expirationDate !== undefined)
+      data.expirationDate = dto.expirationDate ? new Date(dto.expirationDate) : null;
     data.updatedById = actor.actorId;
 
     const updated = await this.prisma.controlledDocument.update({
@@ -303,13 +363,22 @@ export class DocumentsService {
     return toDocumentDto(updated);
   }
 
-  async changeStatus(id: string, status: DocumentStatus, actor: ActorContext): Promise<DocumentDto> {
-    const current = await this.prisma.controlledDocument.findFirst({ where: { id, deletedAt: null }, include: DOC_INCLUDE });
+  async changeStatus(
+    id: string,
+    status: DocumentStatus,
+    actor: ActorContext,
+  ): Promise<DocumentDto> {
+    const current = await this.prisma.controlledDocument.findFirst({
+      where: { id, deletedAt: null },
+      include: DOC_INCLUDE,
+    });
     if (!current) {
       throw new NotFoundException('Document not found');
     }
     if (!TRANSITIONS[current.status].includes(status)) {
-      throw new ConflictException(`Cannot transition a document from ${current.status} to ${status}`);
+      throw new ConflictException(
+        `Cannot transition a document from ${current.status} to ${status}`,
+      );
     }
 
     const data: Prisma.ControlledDocumentUncheckedUpdateInput = {
@@ -317,35 +386,57 @@ export class DocumentsService {
       updatedById: actor.actorId,
       ...(status === 'PUBLISHED' && !current.effectiveDate ? { effectiveDate: new Date() } : {}),
     };
-    const updated = await this.prisma.controlledDocument.update({ where: { id }, data, include: DOC_INCLUDE });
+    const updated = await this.prisma.controlledDocument.update({
+      where: { id },
+      data,
+      include: DOC_INCLUDE,
+    });
 
-    await this.audit(actor, AUDIT_ACTIONS.DOCUMENT_STATUS_CHANGE, id, { from: current.status, to: status });
+    await this.audit(actor, AUDIT_ACTIONS.DOCUMENT_STATUS_CHANGE, id, {
+      from: current.status,
+      to: status,
+    });
 
     // TECPAP rule: notify the uploader when their document is approved or published
-    if ((status === 'APPROVED' || status === 'PUBLISHED') && current.createdById !== actor.actorId) {
-      await this.notifications.emit({
-        userId: current.createdById,
-        type: status === 'APPROVED' ? 'DOCUMENT_APPROVED' : 'DOCUMENT_APPROVED',
-        category: 'document',
-        severity: 'SUCCESS',
-        params: { code: current.code, title: current.title, action: status === 'APPROVED' ? 'approved' : 'published' },
-        entityType: 'document',
-        entityId: id,
-        actionUrl: `/documents/${id}`,
-      }).catch(() => undefined);
+    if (
+      (status === 'APPROVED' || status === 'PUBLISHED') &&
+      current.createdById !== actor.actorId
+    ) {
+      await this.notifications
+        .emit({
+          userId: current.createdById,
+          type: status === 'APPROVED' ? 'DOCUMENT_APPROVED' : 'DOCUMENT_APPROVED',
+          category: 'document',
+          severity: 'SUCCESS',
+          params: {
+            code: current.code,
+            title: current.title,
+            action: status === 'APPROVED' ? 'approved' : 'published',
+          },
+          entityType: 'document',
+          entityId: id,
+          actionUrl: `/documents/${id}`,
+        })
+        .catch(() => undefined);
     }
     // Notify uploader on rejection (OBSOLETE from pilot's perspective = rejected)
-    if (status === 'OBSOLETE' && current.status === 'DRAFT' && current.createdById !== actor.actorId) {
-      await this.notifications.emit({
-        userId: current.createdById,
-        type: 'DOCUMENT_REJECTED',
-        category: 'document',
-        severity: 'WARNING',
-        params: { code: current.code, title: current.title },
-        entityType: 'document',
-        entityId: id,
-        actionUrl: `/documents/${id}`,
-      }).catch(() => undefined);
+    if (
+      status === 'OBSOLETE' &&
+      current.status === 'DRAFT' &&
+      current.createdById !== actor.actorId
+    ) {
+      await this.notifications
+        .emit({
+          userId: current.createdById,
+          type: 'DOCUMENT_REJECTED',
+          category: 'document',
+          severity: 'WARNING',
+          params: { code: current.code, title: current.title },
+          entityType: 'document',
+          entityId: id,
+          actionUrl: `/documents/${id}`,
+        })
+        .catch(() => undefined);
     }
 
     return toDocumentDto(updated);
@@ -357,13 +448,20 @@ export class DocumentsService {
   }
 
   async restore(id: string, actor: ActorContext): Promise<DocumentDto> {
-    const current = await this.prisma.controlledDocument.findFirst({ where: { id }, include: DOC_INCLUDE });
+    const current = await this.prisma.controlledDocument.findFirst({
+      where: { id },
+      include: DOC_INCLUDE,
+    });
     if (!current) {
       throw new NotFoundException('Document not found');
     }
     const restored = await this.prisma.controlledDocument.update({
       where: { id },
-      data: { deletedAt: null, status: 'DRAFT', updatedById: actor.actorId } satisfies Prisma.ControlledDocumentUncheckedUpdateInput,
+      data: {
+        deletedAt: null,
+        status: 'DRAFT',
+        updatedById: actor.actorId,
+      } satisfies Prisma.ControlledDocumentUncheckedUpdateInput,
       include: DOC_INCLUDE,
     });
     await this.audit(actor, AUDIT_ACTIONS.DOCUMENT_RESTORE, id);
@@ -378,14 +476,39 @@ export class DocumentsService {
     }
     await this.prisma.controlledDocument.update({
       where: { id },
-      data: { deletedAt: new Date(), status: 'ARCHIVED', updatedById: actor.actorId } satisfies Prisma.ControlledDocumentUncheckedUpdateInput,
+      data: {
+        deletedAt: new Date(),
+        status: 'ARCHIVED',
+        updatedById: actor.actorId,
+      } satisfies Prisma.ControlledDocumentUncheckedUpdateInput,
     });
     await this.audit(actor, AUDIT_ACTIONS.DOCUMENT_DELETE, id, { code: doc.code });
   }
 
   // ----------------------------------------------------------------- internals
 
-  private async assertRelations(departmentId: string, categoryId: string, processId?: string | null): Promise<void> {
+  /** Rejects a title already used by another non-deleted document (case-insensitive, whitespace-normalized). */
+  private async assertUniqueTitle(title: string, excludeId?: string): Promise<void> {
+    const existing = await this.prisma.controlledDocument.findFirst({
+      where: {
+        normalizedTitle: normalizeName(title),
+        deletedAt: null,
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+      },
+      select: { id: true },
+    });
+    if (existing)
+      throw new ConflictException({
+        code: 'DOCUMENT_DUPLICATE_NAME',
+        message: 'A document with this name already exists.',
+      });
+  }
+
+  private async assertRelations(
+    departmentId: string,
+    categoryId: string,
+    processId?: string | null,
+  ): Promise<void> {
     const department = await this.prisma.department.findUnique({ where: { id: departmentId } });
     if (!department) {
       throw new NotFoundException('Department not found');
@@ -395,14 +518,21 @@ export class DocumentsService {
       throw new NotFoundException('Category not found');
     }
     if (processId) {
-      const process = await this.prisma.process.findFirst({ where: { id: processId, departmentId } });
+      const process = await this.prisma.process.findFirst({
+        where: { id: processId, departmentId },
+      });
       if (!process) {
         throw new NotFoundException('Process not found in this department');
       }
     }
   }
 
-  private async audit(actor: ActorContext, action: string, entityId: string, metadata?: Record<string, unknown>): Promise<void> {
+  private async audit(
+    actor: ActorContext,
+    action: string,
+    entityId: string,
+    metadata?: Record<string, unknown>,
+  ): Promise<void> {
     await this.auditLog.record({
       actorId: actor.actorId,
       ipAddress: actor.ipAddress,

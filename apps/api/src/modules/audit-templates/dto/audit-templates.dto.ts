@@ -1,6 +1,21 @@
-import { IsArray, IsBoolean, IsEnum, IsNumber, IsObject, IsOptional, IsString, IsUUID } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsEnum,
+  IsNumber,
+  IsObject,
+  IsOptional,
+  IsString,
+  IsUUID,
+} from 'class-validator';
 import { PartialType } from '@nestjs/swagger';
-import { QUESTION_TYPES, TEMPLATE_CATEGORIES, TEMPLATE_STATUSES, type QuestionType, type TemplateStatus } from '@tecpap/config';
+import {
+  QUESTION_TYPES,
+  TEMPLATE_CATEGORIES,
+  TEMPLATE_STATUSES,
+  type QuestionType,
+  type TemplateStatus,
+} from '@tecpap/config';
 
 export class CreateQuestionDto {
   @IsString() text!: string;
@@ -40,4 +55,5 @@ export class ListTemplatesQuery {
   @IsOptional() @IsString() search?: string;
   @IsOptional() @IsEnum(TEMPLATE_STATUSES) status?: TemplateStatus;
   @IsOptional() @IsEnum(TEMPLATE_CATEGORIES) category?: string;
+  @IsOptional() @IsUUID() departmentId?: string;
 }

@@ -30,4 +30,6 @@ export class ListAuditsQuery {
   @IsOptional() @IsUUID() processId?: string;
   @IsOptional() @IsUUID() auditorId?: string;
   @IsOptional() @IsUUID() templateId?: string;
+  @IsOptional() @IsString() dateFrom?: string;
+  @IsOptional() @IsString() dateTo?: string;
 }
