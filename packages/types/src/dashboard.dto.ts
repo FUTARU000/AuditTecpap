@@ -1,6 +1,23 @@
 import type { DocumentStatus } from './enums';
 import type { FindingSeverity } from './enums';
 
+/** High-level KPI strip — one number per currently active module, each backed by an existing, reliable query. */
+export interface DashboardOverviewDto {
+  departments: number;
+  activeDocuments: number;
+  activeIndicators: number;
+  openFindings: number;
+  openCapas: number;
+  auditsInProgress: number;
+}
+
+export interface DashboardDocumentControlDto {
+  totalActive: number;
+  awaitingApproval: number;
+  drafts: number;
+  expiringSoon: number;
+}
+
 export interface AuditDashboardStats {
   scheduled: number;
   inProgress: number;
@@ -14,20 +31,42 @@ export interface AuditDashboardStats {
 
 export interface CapaDashboardStats {
   open: number;
+  awaitingVerification: number;
+  returned: number;
+  validated: number;
   overdue: number;
-  pendingVerification: number;
-  pendingEffectiveness: number;
-  closed: number;
+}
+
+/** Uses the existing evaluateIndicator() status classification — never a separately invented metric. */
+export interface DashboardIndicatorsSummaryDto {
+  active: number;
+  onTarget: number;
+  warning: number;
+  critical: number;
+  noData: number;
+}
+
+export interface DashboardAttentionItemDto {
+  type:
+    | 'CRITICAL_INDICATOR'
+    | 'OVERDUE_AUDIT'
+    | 'OVERDUE_CAPA'
+    | 'DOCUMENT_AWAITING_APPROVAL'
+    | 'RETURNED_CAPA';
+  id: string;
+  title: string;
+  href: string;
+  detail: string | null;
 }
 
 export interface DashboardStatsDto {
-  departments: number;
-  documents: number;
-  byStatus: Array<{ status: DocumentStatus; count: number }>;
-  drafts: number;
-  published: number;
-  expiring: number;
-  awaitingApproval: number;
+  overview: DashboardOverviewDto;
+  documents: DashboardDocumentControlDto;
+  audits: AuditDashboardStats;
+  capas: CapaDashboardStats;
+  indicators: DashboardIndicatorsSummaryDto;
+  /** Actionable items across modules, most urgent first — capped, not exhaustive. */
+  requiresAttention: DashboardAttentionItemDto[];
   recentUpdates: Array<{
     id: string;
     action: string;
@@ -43,8 +82,12 @@ export interface DashboardStatsDto {
     departmentName: string | null;
     updatedAt: string;
   }>;
-  audits: AuditDashboardStats;
-  capas: CapaDashboardStats;
+  upcomingAudits: Array<{
+    id: string;
+    title: string;
+    departmentName: string | null;
+    scheduledDate: string | null;
+  }>;
   // Phase 7.7 — TECPAP role-scoped workflow metrics (optional, populated by role)
   capasToVerify?: number;
   capasToValidate?: number;
