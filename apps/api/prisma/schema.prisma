@@ -366,6 +366,12 @@ model DocumentCategory {
 model ControlledDocument {
   id              String              @id @default(uuid())
   title           String
+  /// Case-insensitive, whitespace-normalized copy of `title` (see normalizeName in
+  /// @tecpap/config) — used to detect duplicate names. Not a unique constraint:
+  /// live data already had duplicate titles before this check existed, so
+  /// uniqueness is enforced at the service layer instead (same pattern as
+  /// IndicatorValue's period uniqueness).
+  normalizedTitle String              @default("")
   code            String              @unique
   description     String?
   departmentId    String
@@ -419,6 +425,7 @@ model ControlledDocument {
   @@index([ownerId])
   @@index([deletedAt])
   @@index([expirationDate])
+  @@index([normalizedTitle])
   @@map("controlled_documents")
 }
 
@@ -707,6 +714,8 @@ model BusinessRelationship {
 model AuditTemplate {
   id          String         @id @default(uuid())
   name        String
+  /// See ControlledDocument.normalizedTitle — same pattern, service-layer enforced.
+  normalizedName String      @default("")
   description String?
   category    String
   version     Int            @default(1)
@@ -729,6 +738,7 @@ model AuditTemplate {
   @@index([status])
   @@index([departmentId])
   @@index([processId])
+  @@index([normalizedName])
   @@map("audit_templates")
 }
 
@@ -771,6 +781,8 @@ model AuditTemplateQuestion {
 model Audit {
   id           String      @id @default(uuid())
   title        String
+  /// See ControlledDocument.normalizedTitle — same pattern, service-layer enforced.
+  normalizedTitle String   @default("")
   templateId   String
   template     AuditTemplate @relation(fields: [templateId], references: [id])
   departmentId String
@@ -804,6 +816,7 @@ model Audit {
   @@index([processId])
   @@index([status])
   @@index([auditorId])
+  @@index([normalizedTitle])
   @@map("audits")
 }
 
@@ -932,6 +945,8 @@ model Capa {
   id                   String       @id @default(uuid())
   referenceNumber      String       @unique
   title                String
+  /// See ControlledDocument.normalizedTitle — same pattern, service-layer enforced.
+  normalizedTitle      String       @default("")
   description          String?
   sourceType           String       @default("MANUAL")
   sourceId             String?
@@ -973,6 +988,7 @@ model Capa {
   @@index([findingId])
   @@index([ownerId])
   @@index([processId])
+  @@index([normalizedTitle])
   @@map("capas")
 }
 
