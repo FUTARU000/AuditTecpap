@@ -13,7 +13,14 @@ import { PermissionsGuard } from '../../common/guards/permissions.guard';
 function roleUser(slug: string, isGlobal: boolean, departmentId: string | null): AuthUser {
   const role = SYSTEM_ROLES.find((r) => r.slug === slug);
   if (!role) throw new Error(`Unknown system role slug: ${slug}`);
-  return { id: `u-${slug}`, email: `${slug}@tecpap.local`, role: slug, roleIsGlobal: isGlobal, departmentId, permissions: [...role.permissions] };
+  return {
+    id: `u-${slug}`,
+    email: `${slug}@tecpap.local`,
+    role: slug,
+    roleIsGlobal: isGlobal,
+    departmentId,
+    permissions: [...role.permissions],
+  };
 }
 
 function buildContext(user: AuthUser): ExecutionContext {
@@ -45,5 +52,23 @@ describe('CAPA verify RBAC — unchanged by Phase 3 (verification history)', () 
   it('Pilot retains capas.submit and capas.rework (unaffected by the verification history change)', () => {
     expect(pilot.permissions).toContain('capas.submit');
     expect(pilot.permissions).toContain('capas.rework');
+  });
+});
+
+/**
+ * Individual per-action verification (POST /capas/:id/actions/:actionId/verify)
+ * intentionally reuses the exact same `capas.verify` permission as the general
+ * CAPA verification, rather than introducing a new key — same authority tier,
+ * same guard. This locks in that a Pilot cannot reach it and a Manager can.
+ */
+describe('CAPA individual action verification RBAC (reuses capas.verify — no new permission introduced)', () => {
+  it('Pilot cannot verify/pass/fail individual actions', () => {
+    expect(pilot.permissions).not.toContain('capas.verify');
+    expect(makeGuard(['capas.verify']).canActivate(buildContext(pilot))).toBe(false);
+  });
+
+  it('Audit Manager can verify/pass/fail individual actions', () => {
+    expect(manager.permissions).toContain('capas.verify');
+    expect(makeGuard(['capas.verify']).canActivate(buildContext(manager))).toBe(true);
   });
 });

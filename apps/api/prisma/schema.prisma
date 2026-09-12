@@ -165,6 +165,7 @@ model User {
   capaActionsOwned       CapaAction[]         @relation("CapaActionOwner")
   capaEvidenceUploaded   CapaActionEvidence[] @relation("CapaEvidenceUploader")
   capaVerifications      CapaVerification[]   @relation("CapaVerifier")
+  capaActionVerifications CapaActionVerification[] @relation("CapaActionVerifier")
   capaEffectivenessReviews CapaEffectivenessReview[] @relation("CapaEffectivenessReviewer")
 
   // Phase 7 — Legacy QMS import
@@ -1046,6 +1047,7 @@ model CapaAction {
   completionComment String?
 
   evidence          CapaActionEvidence[]
+  verifications     CapaActionVerification[]
 
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
@@ -1088,6 +1090,24 @@ model CapaVerification {
 
   @@index([capaId, verifiedAt])
   @@map("capa_verifications")
+}
+
+/// Individual per-action verification — a separate history from CapaVerification
+/// (which judges the CAPA as a whole). Same immutable-attempt shape: one row per
+/// attempt, never updated, so a FAILED → reworked → PASSED cycle keeps both
+/// attempts visible. Reuses VerificationResult (PASSED|FAILED) rather than a new enum.
+model CapaActionVerification {
+  id           String             @id @default(uuid())
+  actionId     String
+  action       CapaAction         @relation(fields: [actionId], references: [id], onDelete: Cascade)
+  verifiedById String
+  verifiedBy   User               @relation("CapaActionVerifier", fields: [verifiedById], references: [id])
+  result       VerificationResult
+  notes        String?
+  verifiedAt   DateTime           @default(now())
+
+  @@index([actionId, verifiedAt])
+  @@map("capa_action_verifications")
 }
 
 model CapaEffectivenessReview {

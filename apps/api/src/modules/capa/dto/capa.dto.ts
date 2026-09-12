@@ -1,6 +1,20 @@
 import { IsBoolean, IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
 import { PartialType } from '@nestjs/swagger';
-import { CAPA_PRIORITIES, CAPA_STATUSES, CAPA_ACTION_TYPES, CAPA_ACTION_STATUSES, VERIFICATION_RESULTS, EFFECTIVENESS_RESULTS, FINDING_CAPA_DECISIONS, type CapaPriority, type CapaStatus, type CapaActionType, type CapaActionStatus, type VerificationResult, type EffectivenessResult } from '@tecpap/config';
+import {
+  CAPA_PRIORITIES,
+  CAPA_STATUSES,
+  CAPA_ACTION_TYPES,
+  CAPA_ACTION_STATUSES,
+  VERIFICATION_RESULTS,
+  EFFECTIVENESS_RESULTS,
+  FINDING_CAPA_DECISIONS,
+  type CapaPriority,
+  type CapaStatus,
+  type CapaActionType,
+  type CapaActionStatus,
+  type VerificationResult,
+  type EffectivenessResult,
+} from '@tecpap/config';
 
 export class CreateCapaDto {
   @IsString() title!: string;
@@ -28,7 +42,10 @@ export class UpdateRootCauseDto {
   @IsOptional() @IsBoolean() useEightD?: boolean;
 }
 
-export class CreateWhyStepDto { @IsString() question!: string; @IsOptional() @IsString() answer?: string; }
+export class CreateWhyStepDto {
+  @IsString() question!: string;
+  @IsOptional() @IsString() answer?: string;
+}
 export class UpdateEightDDto {
   @IsOptional() @IsString() d1Team?: string;
   @IsOptional() @IsString() d2ProblemDescription?: string;
@@ -54,11 +71,28 @@ export class UpdateActionDto extends PartialType(CreateActionDto) {
   @IsOptional() @IsString() completionComment?: string;
 }
 
-export class TransitionDto { @IsEnum(CAPA_STATUSES) status!: CapaStatus; }
-export class VerificationDto { @IsEnum(VERIFICATION_RESULTS) result!: VerificationResult; @IsOptional() @IsString() notes?: string; }
-export class EffectivenessDto { @IsEnum(EFFECTIVENESS_RESULTS) result!: EffectivenessResult; @IsOptional() @IsString() notes?: string; }
-export class ClosureDto { @IsOptional() @IsString() closureComment?: string; }
-export class FindingDecisionDto { @IsEnum(FINDING_CAPA_DECISIONS) decision!: 'REQUIRED' | 'NOT_REQUIRED'; @IsOptional() @IsString() reason?: string; }
+export class TransitionDto {
+  @IsEnum(CAPA_STATUSES) status!: CapaStatus;
+}
+export class VerificationDto {
+  @IsEnum(VERIFICATION_RESULTS) result!: VerificationResult;
+  @IsOptional() @IsString() notes?: string;
+}
+export class VerifyActionDto {
+  @IsEnum(VERIFICATION_RESULTS) result!: VerificationResult;
+  @IsOptional() @IsString() notes?: string;
+}
+export class EffectivenessDto {
+  @IsEnum(EFFECTIVENESS_RESULTS) result!: EffectivenessResult;
+  @IsOptional() @IsString() notes?: string;
+}
+export class ClosureDto {
+  @IsOptional() @IsString() closureComment?: string;
+}
+export class FindingDecisionDto {
+  @IsEnum(FINDING_CAPA_DECISIONS) decision!: 'REQUIRED' | 'NOT_REQUIRED';
+  @IsOptional() @IsString() reason?: string;
+}
 
 export class ListCapasQuery {
   @IsOptional() @IsString() page?: string;
