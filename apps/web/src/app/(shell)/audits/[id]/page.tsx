@@ -4,8 +4,16 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import {
-  CheckCircle2, Download, Eye, File, FileText, Image as ImageIcon, Loader2, PlusCircle,
-  Send, Trash2, Upload, XCircle,
+  CheckCircle2,
+  Download,
+  Eye,
+  File,
+  Loader2,
+  PlusCircle,
+  Send,
+  Trash2,
+  Upload,
+  XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { FINDING_SEVERITIES, FINDING_SEVERITY_LABELS, type FindingSeverity } from '@tecpap/config';
@@ -13,15 +21,39 @@ import { Badge, Button, Input, Label } from '@tecpap/ui';
 import type { AuditEvidenceDto, FindingDto } from '@tecpap/types';
 import { api, getAccessToken, RequestError, uploadFile } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { ErrorState } from '@/components/admin/common';
+import { fetchEvidenceBlob, fileIcon, fmtSize, isImage } from './evidence-utils';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4001';
-const STATUS_TONE: Record<string, 'secondary' | 'warning' | 'success' | 'danger' | 'outline'> = { PLANNED: 'secondary', IN_PROGRESS: 'warning', SUBMITTED: 'outline', UNDER_REVIEW: 'outline', RETURNED: 'danger', APPROVED: 'success', COMPLETED: 'success' };
+const STATUS_TONE: Record<string, 'secondary' | 'warning' | 'success' | 'danger' | 'outline'> = {
+  PLANNED: 'secondary',
+  IN_PROGRESS: 'warning',
+  SUBMITTED: 'outline',
+  UNDER_REVIEW: 'outline',
+  RETURNED: 'danger',
+  APPROVED: 'success',
+  COMPLETED: 'success',
+};
 
-interface LocalAnswer { value: string; status: string }
+interface LocalAnswer {
+  value: string;
+  status: string;
+}
 
 interface QuestionDef {
   id: string;
@@ -33,18 +65,6 @@ interface QuestionDef {
   weight?: number;
   helpText?: string;
   options?: string[];
-}
-
-function fileIcon(mime: string) {
-  if (mime.startsWith('image/')) return ImageIcon;
-  if (mime === 'application/pdf') return FileText;
-  return File;
-}
-function isImage(mime: string) { return mime.startsWith('image/'); }
-function fmtSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1048576) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / 1048576).toFixed(1)} MB`;
 }
 
 export default function AuditExecutionPage() {
@@ -60,7 +80,11 @@ export default function AuditExecutionPage() {
   const [busy, setBusy] = useState(false);
 
   const [findingOpen, setFindingOpen] = useState(false);
-  const [findingForm, setFindingForm] = useState({ title: '', severity: 'OBSERVATION' as FindingSeverity, description: '' });
+  const [findingForm, setFindingForm] = useState({
+    title: '',
+    severity: 'OBSERVATION' as FindingSeverity,
+    description: '',
+  });
   const [findingSaving, setFindingSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const questionFileRef = useRef<HTMLInputElement>(null);
@@ -74,11 +98,16 @@ export default function AuditExecutionPage() {
     try {
       const detail = (await api.get(`/audits/${id}`)) as Record<string, unknown>;
       setAudit(detail);
-      const sections = (detail.sections as Array<{ questions: Array<{ id: string; answer?: { value: unknown; status: string } | null }> }>) ?? [];
+      const sections =
+        (detail.sections as Array<{
+          questions: Array<{ id: string; answer?: { value: unknown; status: string } | null }>;
+        }>) ?? [];
       const map: Record<string, LocalAnswer> = {};
       for (const section of sections) {
         for (const question of section.questions) {
-          const value = question.answer ? String((question.answer.value as { text?: string } | string | null) ?? '') : '';
+          const value = question.answer
+            ? String((question.answer.value as { text?: string } | string | null) ?? '')
+            : '';
           map[question.id] = { value, status: question.answer?.status ?? 'pending' };
         }
       }
@@ -96,31 +125,46 @@ export default function AuditExecutionPage() {
     }
   }, [id]);
 
-  useEffect(() => { void reload(); }, [reload]);
+  useEffect(() => {
+    void reload();
+  }, [reload]);
 
   async function saveAnswer(questionId: string) {
     const answer = answers[questionId];
     if (!answer) return;
     try {
-      await api.patch(`/audits/${id}/answer`, { questionId, value: { text: answer.value }, status: answer.status });
+      await api.patch(`/audits/${id}/answer`, {
+        questionId,
+        value: { text: answer.value },
+        status: answer.status,
+      });
     } catch (err) {
       toast.error(err instanceof RequestError ? err.message : 'Could not save answer.');
     }
   }
 
   function updateAnswer(qid: string, value: string, status?: string) {
-    setAnswers((cur) => ({ ...cur, [qid]: { value, status: status ?? cur[qid]?.status ?? 'pending' } }));
+    setAnswers((cur) => ({
+      ...cur,
+      [qid]: { value, status: status ?? cur[qid]?.status ?? 'pending' },
+    }));
   }
 
   async function lifecycle(action: string, label: string, body?: Record<string, unknown>) {
     if (action === 'submit') {
-      const missing = allQuestions.filter((q) => q.required && (answers[q.id]?.status ?? 'pending') === 'pending');
+      const missing = allQuestions.filter(
+        (q) => q.required && (answers[q.id]?.status ?? 'pending') === 'pending',
+      );
       if (missing.length > 0) {
-        toast.error(`${missing.length} required question(s) unanswered. Please answer before submitting.`);
+        toast.error(
+          `${missing.length} required question(s) unanswered. Please answer before submitting.`,
+        );
         return;
       }
       // Evidence-required enforcement: question must have at least one evidence attached
-      const needEvidence = allQuestions.filter((q) => q.evidenceRequired && !evidence.some((e) => e.questionId === q.id));
+      const needEvidence = allQuestions.filter(
+        (q) => q.evidenceRequired && !evidence.some((e) => e.questionId === q.id),
+      );
       const firstEvidenceQ = needEvidence[0];
       if (firstEvidenceQ) {
         toast.error(`Evidence is required for this question: "${firstEvidenceQ.text}"`);
@@ -142,7 +186,12 @@ export default function AuditExecutionPage() {
   async function createFinding() {
     setFindingSaving(true);
     try {
-      await api.post(`/audits/${id}/findings`, { auditId: id, title: findingForm.title, severity: findingForm.severity, description: findingForm.description || null });
+      await api.post(`/audits/${id}/findings`, {
+        auditId: id,
+        title: findingForm.title,
+        severity: findingForm.severity,
+        description: findingForm.description || null,
+      });
       toast.success('Finding created');
       setFindingOpen(false);
       setFindingForm({ title: '', severity: 'OBSERVATION', description: '' });
@@ -178,26 +227,27 @@ export default function AuditExecutionPage() {
 
   async function downloadEvidence(ev: AuditEvidenceDto) {
     try {
-      const token = getAccessToken();
-      const res = await fetch(`${API_BASE}/api/v1/audits/${id}/evidence/${ev.id}/download`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-      if (!res.ok) throw new Error();
-      const blob = await res.blob();
+      const blob = await fetchEvidenceBlob(id, ev.id);
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = ev.fileName; a.click();
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = ev.fileName;
+      a.click();
       URL.revokeObjectURL(url);
-    } catch { toast.error('Download failed.'); }
+    } catch {
+      toast.error('Download failed.');
+    }
   }
 
   async function openPreview(ev: AuditEvidenceDto) {
     setPreviewEvidence(ev);
     setPreviewUrl(null);
     try {
-      const token = getAccessToken();
-      const res = await fetch(`${API_BASE}/api/v1/audits/${id}/evidence/${ev.id}/download`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-      if (!res.ok) throw new Error();
-      const blob = await res.blob();
+      const blob = await fetchEvidenceBlob(id, ev.id);
       setPreviewUrl(URL.createObjectURL(blob));
-    } catch { toast.error('Preview failed.'); }
+    } catch {
+      toast.error('Preview failed.');
+    }
   }
 
   async function deleteEvidence(ev: AuditEvidenceDto) {
@@ -212,23 +262,43 @@ export default function AuditExecutionPage() {
 
   async function downloadReport(format: 'pdf' | 'xlsx') {
     const token = getAccessToken();
-    const res = await fetch(`${API_BASE}/api/v1/audits/${id}/report.${format}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-    if (!res.ok) { toast.error('Report generation failed.'); return; }
+    const res = await fetch(`${API_BASE}/api/v1/audits/${id}/report.${format}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      toast.error('Report generation failed.');
+      return;
+    }
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = `audit-${id}.${format}`; a.click(); URL.revokeObjectURL(url);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `audit-${id}.${format}`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
-  if (loading) return <div className="mx-auto max-w-4xl p-8 text-sm text-muted-foreground">Loading audit…</div>;
-  if (error || !audit) return <div className="mx-auto max-w-4xl"><ErrorState message={error ?? 'Not found'} /></div>;
+  if (loading)
+    return (
+      <div className="text-muted-foreground mx-auto max-w-4xl p-8 text-sm">Loading audit…</div>
+    );
+  if (error || !audit)
+    return (
+      <div className="mx-auto max-w-4xl">
+        <ErrorState message={error ?? 'Not found'} />
+      </div>
+    );
 
   const status = audit.status as string;
-  const sections = (audit.sections as Array<{ id: string; title: string; questions: QuestionDef[] }>) ?? [];
+  const sections =
+    (audit.sections as Array<{ id: string; title: string; questions: QuestionDef[] }>) ?? [];
   const canExecute = hasPermission('audits.execute');
   const canApprove = hasPermission('audits.approve');
 
   const allQuestions = sections.flatMap((s) => s.questions);
-  const answeredCount = allQuestions.filter((q) => (answers[q.id]?.status ?? 'pending') !== 'pending').length;
+  const answeredCount = allQuestions.filter(
+    (q) => (answers[q.id]?.status ?? 'pending') !== 'pending',
+  ).length;
   const totalCount = allQuestions.length;
   const progressPct = totalCount > 0 ? Math.round((answeredCount / totalCount) * 100) : 0;
 
@@ -236,72 +306,161 @@ export default function AuditExecutionPage() {
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
       {/* Header */}
       <div>
-        <Link href="/audits" className="text-xs text-muted-foreground hover:underline">← Audits</Link>
+        <Link href="/audits" className="text-muted-foreground text-xs hover:underline">
+          ← Audits
+        </Link>
         <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-2xl font-semibold tracking-tight text-foreground">{audit.title as string}</h2>
+              <h2 className="text-foreground text-2xl font-semibold tracking-tight">
+                {audit.title as string}
+              </h2>
               <Badge variant={STATUS_TONE[status] ?? 'secondary'}>{status}</Badge>
             </div>
-            <p className="text-sm text-muted-foreground">{audit.templateName as string} · {audit.departmentName as string}</p>
+            <p className="text-muted-foreground text-sm">
+              {audit.templateName as string} · {audit.departmentName as string}
+            </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {(status === 'PLANNED' || status === 'RETURNED') && canExecute ? <Button size="sm" onClick={() => void lifecycle('start', 'Audit started')} disabled={busy}><Send className="size-4" /> Start</Button> : null}
-            {(status === 'IN_PROGRESS' || status === 'RETURNED') && canExecute ? <Button size="sm" onClick={() => void lifecycle('submit', 'Submitted for review')} disabled={busy}><CheckCircle2 className="size-4" /> Submit</Button> : null}
-            {(status === 'SUBMITTED' || status === 'UNDER_REVIEW') && canApprove ? <Button size="sm" onClick={() => void lifecycle('approve', 'Audit approved')} disabled={busy}><CheckCircle2 className="size-4" /> Approve</Button> : null}
-            {(status === 'SUBMITTED' || status === 'UNDER_REVIEW') && canApprove ? <Button size="sm" variant="outline" onClick={() => void lifecycle('return', 'Returned for corrections')} disabled={busy}><XCircle className="size-4" /> Return</Button> : null}
-            {status === 'APPROVED' && canApprove ? <Button size="sm" onClick={() => void lifecycle('complete', 'Audit completed')} disabled={busy}><CheckCircle2 className="size-4" /> Complete</Button> : null}
-            <Button size="sm" variant="outline" onClick={() => void downloadReport('pdf')}><Download className="size-4" /> PDF</Button>
-            <Button size="sm" variant="outline" onClick={() => void downloadReport('xlsx')}><Download className="size-4" /> Excel</Button>
+            {(status === 'PLANNED' || status === 'RETURNED') && canExecute ? (
+              <Button
+                size="sm"
+                onClick={() => void lifecycle('start', 'Audit started')}
+                disabled={busy}
+              >
+                <Send className="size-4" /> Start
+              </Button>
+            ) : null}
+            {(status === 'IN_PROGRESS' || status === 'RETURNED') && canExecute ? (
+              <Button
+                size="sm"
+                onClick={() => void lifecycle('submit', 'Submitted for review')}
+                disabled={busy}
+              >
+                <CheckCircle2 className="size-4" /> Submit
+              </Button>
+            ) : null}
+            {(status === 'SUBMITTED' || status === 'UNDER_REVIEW') && canApprove ? (
+              <Button
+                size="sm"
+                onClick={() => void lifecycle('approve', 'Audit approved')}
+                disabled={busy}
+              >
+                <CheckCircle2 className="size-4" /> Approve
+              </Button>
+            ) : null}
+            {(status === 'SUBMITTED' || status === 'UNDER_REVIEW') && canApprove ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void lifecycle('return', 'Returned for corrections')}
+                disabled={busy}
+              >
+                <XCircle className="size-4" /> Return
+              </Button>
+            ) : null}
+            {status === 'APPROVED' && canApprove ? (
+              <Button
+                size="sm"
+                onClick={() => void lifecycle('complete', 'Audit completed')}
+                disabled={busy}
+              >
+                <CheckCircle2 className="size-4" /> Complete
+              </Button>
+            ) : null}
+            <Button size="sm" variant="outline" onClick={() => void downloadReport('pdf')}>
+              <Download className="size-4" /> PDF
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => void downloadReport('xlsx')}>
+              <Download className="size-4" /> Excel
+            </Button>
           </div>
         </div>
       </div>
 
       {/* Progress bar */}
-      <div className="rounded-lg border border-border bg-card p-4">
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>{answeredCount} / {totalCount} answered</span>
+      <div className="border-border bg-card rounded-lg border p-4">
+        <div className="text-muted-foreground flex items-center justify-between text-xs">
+          <span>
+            {answeredCount} / {totalCount} answered
+          </span>
           <span className="flex gap-3">
             <span>📄 {evidence.length} evidence</span>
             <span>⚠ {findings.length} findings</span>
             <span>{progressPct}%</span>
           </span>
         </div>
-        <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted">
-          <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progressPct}%` }} />
+        <div className="bg-muted mt-2 h-2 w-full overflow-hidden rounded-full">
+          <div
+            className="bg-primary h-full rounded-full transition-all"
+            style={{ width: `${progressPct}%` }}
+          />
         </div>
       </div>
 
       {/* Checklist with question type rendering */}
       <div className="flex flex-col gap-4">
         {sections.map((section, si) => (
-          <section key={section.id} className="rounded-lg border border-border bg-card p-5">
-            <h3 className="mb-1 text-sm font-semibold text-foreground">{si + 1}. {section.title}</h3>
+          <section key={section.id} className="border-border bg-card rounded-lg border p-5">
+            <h3 className="text-foreground mb-1 text-sm font-semibold">
+              {si + 1}. {section.title}
+            </h3>
             <div className="space-y-3">
               {section.questions.map((question, qi) => {
                 const answer = answers[question.id] ?? { value: '', status: 'pending' };
                 const questionEvidence = evidence.filter((e) => e.questionId === question.id);
                 const evidenceMissing = question.evidenceRequired && questionEvidence.length === 0;
                 return (
-                  <div key={question.id} className={`rounded-md border p-3 ${answer.status !== 'pending' ? 'border-primary/30 bg-primary/5' : 'border-border'} ${evidenceMissing ? 'border-warning/50' : ''}`}>
+                  <div
+                    key={question.id}
+                    className={`rounded-md border p-3 ${answer.status !== 'pending' ? 'border-primary/30 bg-primary/5' : 'border-border'} ${evidenceMissing ? 'border-warning/50' : ''}`}
+                  >
                     <div className="mb-2 flex items-start justify-between gap-2">
-                      <p className="text-sm font-medium text-foreground">
-                        <span className="mr-1 text-xs text-muted-foreground">{si + 1}.{qi + 1}</span>
+                      <p className="text-foreground text-sm font-medium">
+                        <span className="text-muted-foreground mr-1 text-xs">
+                          {si + 1}.{qi + 1}
+                        </span>
                         {question.text}
-                        {question.required ? <span className="ml-1 text-destructive">*</span> : null}
-                        {question.evidenceRequired ? <Badge variant="outline" className="ml-1.5 shrink-0 text-[9px] text-warning">📎</Badge> : null}
+                        {question.required ? (
+                          <span className="text-destructive ml-1">*</span>
+                        ) : null}
+                        {question.evidenceRequired ? (
+                          <Badge
+                            variant="outline"
+                            className="text-warning ml-1.5 shrink-0 text-[9px]"
+                          >
+                            📎
+                          </Badge>
+                        ) : null}
                       </p>
                       <div className="flex shrink-0 items-center gap-1">
-                        {question.weight && question.weight !== 1 ? <Badge variant="outline" className="text-[10px]">×{question.weight}</Badge> : null}
+                        {question.weight && question.weight !== 1 ? (
+                          <Badge variant="outline" className="text-[10px]">
+                            ×{question.weight}
+                          </Badge>
+                        ) : null}
                         {canExecute ? (
-                          <Button size="sm" variant="ghost" className="h-6 gap-1 px-1.5 text-[10px]" onClick={() => attachEvidence(question.id)} aria-label="Attach evidence to this question">
-                            <Upload className="size-3" /> {questionEvidence.length > 0 ? questionEvidence.length : ''}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 gap-1 px-1.5 text-[10px]"
+                            onClick={() => attachEvidence(question.id)}
+                            aria-label="Attach evidence to this question"
+                          >
+                            <Upload className="size-3" />{' '}
+                            {questionEvidence.length > 0 ? questionEvidence.length : ''}
                           </Button>
                         ) : null}
                       </div>
                     </div>
-                    {question.helpText ? <p className="mb-2 text-xs text-muted-foreground">{question.helpText}</p> : null}
-                    {evidenceMissing ? <p className="mb-2 text-xs font-medium text-warning">Evidence is required for this question.</p> : null}
+                    {question.helpText ? (
+                      <p className="text-muted-foreground mb-2 text-xs">{question.helpText}</p>
+                    ) : null}
+                    {evidenceMissing ? (
+                      <p className="text-warning mb-2 text-xs font-medium">
+                        Evidence is required for this question.
+                      </p>
+                    ) : null}
                     <QuestionInput
                       question={question}
                       answer={answer}
@@ -310,12 +469,19 @@ export default function AuditExecutionPage() {
                       onSave={() => void saveAnswer(question.id)}
                     />
                     {questionEvidence.length > 0 ? (
-                      <div className="mt-2 flex flex-wrap gap-1.5 border-t border-border pt-2">
+                      <div className="border-border mt-2 flex flex-wrap gap-1.5 border-t pt-2">
                         {questionEvidence.map((ev) => {
                           const Icon = fileIcon(ev.mimeType);
                           return (
-                            <button key={ev.id} type="button" onClick={() => void openPreview(ev)} className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent" title={ev.fileName}>
-                              <Icon className="size-3" /> {ev.fileName.slice(0, 20)}{ev.fileName.length > 20 ? '…' : ''}
+                            <button
+                              key={ev.id}
+                              type="button"
+                              onClick={() => void openPreview(ev)}
+                              className="border-border bg-muted/40 text-muted-foreground hover:bg-accent inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs"
+                              title={ev.fileName}
+                            >
+                              <Icon className="size-3" /> {ev.fileName.slice(0, 20)}
+                              {ev.fileName.length > 20 ? '…' : ''}
                             </button>
                           );
                         })}
@@ -331,17 +497,29 @@ export default function AuditExecutionPage() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Findings */}
-        <section className="rounded-lg border border-border bg-card p-5">
+        <section className="border-border bg-card rounded-lg border p-5">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-foreground">Findings ({findings.length})</h3>
-            <Button size="sm" variant="outline" onClick={() => setFindingOpen(true)}><PlusCircle className="size-4" /> Add</Button>
+            <h3 className="text-foreground text-sm font-semibold">Findings ({findings.length})</h3>
+            <Button size="sm" variant="outline" onClick={() => setFindingOpen(true)}>
+              <PlusCircle className="size-4" /> Add
+            </Button>
           </div>
-          {findings.length === 0 ? <p className="text-sm text-muted-foreground">No findings.</p> : (
+          {findings.length === 0 ? (
+            <p className="text-muted-foreground text-sm">No findings.</p>
+          ) : (
             <ul className="space-y-2">
               {findings.map((finding) => (
                 <li key={finding.id} className="flex items-center justify-between gap-2 text-sm">
                   <span className="text-foreground">{finding.title}</span>
-                  <Badge variant={finding.severity === 'MAJOR_NC' || finding.severity === 'MINOR_NC' ? 'danger' : 'warning'}>{FINDING_SEVERITY_LABELS[finding.severity]}</Badge>
+                  <Badge
+                    variant={
+                      finding.severity === 'MAJOR_NC' || finding.severity === 'MINOR_NC'
+                        ? 'danger'
+                        : 'warning'
+                    }
+                  >
+                    {FINDING_SEVERITY_LABELS[finding.severity]}
+                  </Badge>
                 </li>
               ))}
             </ul>
@@ -349,38 +527,81 @@ export default function AuditExecutionPage() {
         </section>
 
         {/* Evidence */}
-        <section className="rounded-lg border border-border bg-card p-5">
+        <section className="border-border bg-card rounded-lg border p-5">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-foreground">Evidence ({evidence.length})</h3>
+            <h3 className="text-foreground text-sm font-semibold">Evidence ({evidence.length})</h3>
             <input ref={fileRef} type="file" className="hidden" onChange={(e) => void onFile(e)} />
-            <input ref={questionFileRef} type="file" className="hidden" onChange={(e) => void onFile(e, attachQuestionId ?? undefined)} />
-            <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()}><Upload className="size-4" /> Upload</Button>
+            <input
+              ref={questionFileRef}
+              type="file"
+              className="hidden"
+              onChange={(e) => void onFile(e, attachQuestionId ?? undefined)}
+            />
+            <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()}>
+              <Upload className="size-4" /> Upload
+            </Button>
           </div>
           {evidence.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Attach photos, PDFs or files to questions, findings or the audit.</p>
+            <p className="text-muted-foreground text-sm">
+              Attach photos, PDFs or files to questions, findings or the audit.
+            </p>
           ) : (
             <ul className="space-y-2">
               {evidence.map((ev) => {
                 const Icon = fileIcon(ev.mimeType);
                 return (
-                  <li key={ev.id} className="flex items-center gap-2 rounded-md border border-border p-2 text-sm">
+                  <li
+                    key={ev.id}
+                    className="border-border flex items-center gap-2 rounded-md border p-2 text-sm"
+                  >
                     {isImage(ev.mimeType) && previewUrl === null ? (
-                      <button type="button" onClick={() => void openPreview(ev)} className="size-10 shrink-0 overflow-hidden rounded border border-border">
+                      <button
+                        type="button"
+                        onClick={() => void openPreview(ev)}
+                        className="border-border size-10 shrink-0 overflow-hidden rounded border"
+                      >
                         <ThumbPreview auditId={id} evidence={ev} />
                       </button>
                     ) : (
-                      <span className="flex size-10 shrink-0 items-center justify-center rounded border border-border bg-muted/40">
-                        <Icon className="size-4 text-muted-foreground" />
+                      <span className="border-border bg-muted/40 flex size-10 shrink-0 items-center justify-center rounded border">
+                        <Icon className="text-muted-foreground size-4" />
                       </span>
                     )}
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium text-foreground">{ev.fileName}</p>
-                      <p className="text-xs text-muted-foreground">{fmtSize(ev.sizeBytes)} · {ev.uploadedByName ?? '—'} · {new Date(ev.createdAt).toLocaleDateString()}</p>
+                      <p className="text-foreground truncate font-medium">{ev.fileName}</p>
+                      <p className="text-muted-foreground text-xs">
+                        {fmtSize(ev.sizeBytes)} · {ev.uploadedByName ?? '—'} ·{' '}
+                        {new Date(ev.createdAt).toLocaleDateString()}
+                      </p>
                     </div>
                     <div className="flex shrink-0 gap-1">
-                      <Button size="sm" variant="ghost" className="size-7 p-0" onClick={() => void openPreview(ev)} aria-label="Preview"><Eye className="size-3.5" /></Button>
-                      <Button size="sm" variant="ghost" className="size-7 p-0" onClick={() => void downloadEvidence(ev)} aria-label="Download"><Download className="size-3.5" /></Button>
-                      <Button size="sm" variant="ghost" className="size-7 p-0 text-destructive" onClick={() => void deleteEvidence(ev)} aria-label="Delete"><Trash2 className="size-3.5" /></Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="size-7 p-0"
+                        onClick={() => void openPreview(ev)}
+                        aria-label="Preview"
+                      >
+                        <Eye className="size-3.5" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="size-7 p-0"
+                        onClick={() => void downloadEvidence(ev)}
+                        aria-label="Download"
+                      >
+                        <Download className="size-3.5" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-destructive size-7 p-0"
+                        onClick={() => void deleteEvidence(ev)}
+                        aria-label="Delete"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
                     </div>
                   </li>
                 );
@@ -393,43 +614,104 @@ export default function AuditExecutionPage() {
       {/* Finding dialog */}
       <Dialog open={findingOpen} onOpenChange={setFindingOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>New finding</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>New finding</DialogTitle>
+          </DialogHeader>
           <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-2"><Label htmlFor="f-title">Title</Label><Input id="f-title" value={findingForm.title} onChange={(e) => setFindingForm((c) => ({ ...c, title: e.target.value }))} /></div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="f-title">Title</Label>
+              <Input
+                id="f-title"
+                value={findingForm.title}
+                onChange={(e) => setFindingForm((c) => ({ ...c, title: e.target.value }))}
+              />
+            </div>
             <div className="flex flex-col gap-2">
               <Label>Severity</Label>
-              <Select value={findingForm.severity} onValueChange={(v) => setFindingForm((c) => ({ ...c, severity: v as FindingSeverity }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{FINDING_SEVERITIES.map((s) => <SelectItem key={s} value={s}>{FINDING_SEVERITY_LABELS[s]}</SelectItem>)}</SelectContent></Select>
+              <Select
+                value={findingForm.severity}
+                onValueChange={(v) =>
+                  setFindingForm((c) => ({ ...c, severity: v as FindingSeverity }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {FINDING_SEVERITIES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {FINDING_SEVERITY_LABELS[s]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div className="flex flex-col gap-2"><Label htmlFor="f-desc">Description</Label><Textarea id="f-desc" value={findingForm.description} onChange={(e) => setFindingForm((c) => ({ ...c, description: e.target.value }))} /></div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="f-desc">Description</Label>
+              <Textarea
+                id="f-desc"
+                value={findingForm.description}
+                onChange={(e) => setFindingForm((c) => ({ ...c, description: e.target.value }))}
+              />
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setFindingOpen(false)}>Cancel</Button>
-            <Button onClick={() => void createFinding()} disabled={findingSaving || !findingForm.title}>{findingSaving ? <Loader2 className="size-4 animate-spin" /> : null}Create</Button>
+            <Button variant="outline" onClick={() => setFindingOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => void createFinding()}
+              disabled={findingSaving || !findingForm.title}
+            >
+              {findingSaving ? <Loader2 className="size-4 animate-spin" /> : null}Create
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Evidence preview modal */}
-      <Dialog open={!!previewEvidence} onOpenChange={(o) => { if (!o) { setPreviewEvidence(null); setPreviewUrl(null); } }}>
+      <Dialog
+        open={!!previewEvidence}
+        onOpenChange={(o) => {
+          if (!o) {
+            setPreviewEvidence(null);
+            setPreviewUrl(null);
+          }
+        }}
+      >
         <DialogContent className="max-w-3xl">
-          <DialogHeader><DialogTitle>{previewEvidence?.fileName}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>{previewEvidence?.fileName}</DialogTitle>
+          </DialogHeader>
           {previewUrl ? (
             isImage(previewEvidence?.mimeType ?? '') ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={previewUrl} alt={previewEvidence?.fileName ?? ''} className="max-h-[70vh] w-full object-contain" />
+              <img
+                src={previewUrl}
+                alt={previewEvidence?.fileName ?? ''}
+                className="max-h-[70vh] w-full object-contain"
+              />
             ) : previewEvidence?.mimeType === 'application/pdf' ? (
               <iframe src={previewUrl} className="h-[70vh] w-full rounded-md border-0" />
             ) : (
               <div className="flex flex-col items-center gap-3 p-8 text-center">
-                <File className="size-16 text-muted-foreground/40" strokeWidth={1} />
-                <p className="text-sm text-muted-foreground">Preview not available for this format. Use Download.</p>
+                <File className="text-muted-foreground/40 size-16" strokeWidth={1} />
+                <p className="text-muted-foreground text-sm">
+                  Preview not available for this format. Use Download.
+                </p>
               </div>
             )
           ) : (
-            <div className="flex h-40 items-center justify-center"><Loader2 className="size-6 animate-spin text-muted-foreground" /></div>
+            <div className="flex h-40 items-center justify-center">
+              <Loader2 className="text-muted-foreground size-6 animate-spin" />
+            </div>
           )}
           <DialogFooter>
-            {previewEvidence ? <Button variant="outline" onClick={() => void downloadEvidence(previewEvidence)}><Download className="size-4" /> Download</Button> : null}
+            {previewEvidence ? (
+              <Button variant="outline" onClick={() => void downloadEvidence(previewEvidence)}>
+                <Download className="size-4" /> Download
+              </Button>
+            ) : null}
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -443,21 +725,31 @@ function ThumbPreview({ auditId, evidence }: { auditId: string; evidence: AuditE
   useEffect(() => {
     let active = true;
     let objectUrl: string | null = null;
-    const token = getAccessToken();
-    fetch(`${API_BASE}/api/v1/audits/${auditId}/evidence/${evidence.id}/download`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
-      .then((r) => (r.ok ? r.blob() : null))
-      .then((b) => { if (active && b) { objectUrl = URL.createObjectURL(b); setUrl(objectUrl); } })
+    fetchEvidenceBlob(auditId, evidence.id)
+      .then((b) => {
+        if (active) {
+          objectUrl = URL.createObjectURL(b);
+          setUrl(objectUrl);
+        }
+      })
       .catch(() => undefined);
-    return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
   }, [auditId, evidence.id]);
-  if (!url) return <div className="size-full animate-pulse bg-muted" />;
+  if (!url) return <div className="bg-muted size-full animate-pulse" />;
   // eslint-disable-next-line @next/next/no-img-element
   return <img src={url} alt="" className="size-full object-cover" />;
 }
 
 /** Question-type-aware input renderer */
 function QuestionInput({
-  question, answer, disabled, onChange, onSave,
+  question,
+  answer,
+  disabled,
+  onChange,
+  onSave,
 }: {
   question: QuestionDef;
   answer: LocalAnswer;
@@ -476,8 +768,14 @@ function QuestionInput({
     case 'LONG_TEXT':
       return (
         <div className="space-y-2">
-          <Textarea className="min-h-20" placeholder="Answer…" value={answer.value} disabled={disabled}
-            onChange={(e) => onChange(e.target.value)} onBlur={onSave} />
+          <Textarea
+            className="min-h-20"
+            placeholder="Answer…"
+            value={answer.value}
+            disabled={disabled}
+            onChange={(e) => onChange(e.target.value)}
+            onBlur={onSave}
+          />
           <StatusSelect answer={answer} disabled={disabled} onChange={onChange} onSave={onSave} />
         </div>
       );
@@ -485,8 +783,15 @@ function QuestionInput({
     case 'NUMBER':
       return (
         <div className="flex flex-wrap items-center gap-2">
-          <Input className="w-32" type="number" placeholder="0" value={answer.value} disabled={disabled}
-            onChange={(e) => handleNumber(e.target.value)} onBlur={onSave} />
+          <Input
+            className="w-32"
+            type="number"
+            placeholder="0"
+            value={answer.value}
+            disabled={disabled}
+            onChange={(e) => handleNumber(e.target.value)}
+            onBlur={onSave}
+          />
           <StatusSelect answer={answer} disabled={disabled} onChange={onChange} onSave={onSave} />
         </div>
       );
@@ -494,8 +799,14 @@ function QuestionInput({
     case 'DATE':
       return (
         <div className="flex flex-wrap items-center gap-2">
-          <Input className="w-44" type="date" value={answer.value} disabled={disabled}
-            onChange={(e) => onChange(e.target.value)} onBlur={onSave} />
+          <Input
+            className="w-44"
+            type="date"
+            value={answer.value}
+            disabled={disabled}
+            onChange={(e) => onChange(e.target.value)}
+            onBlur={onSave}
+          />
           <StatusSelect answer={answer} disabled={disabled} onChange={onChange} onSave={onSave} />
         </div>
       );
@@ -503,11 +814,24 @@ function QuestionInput({
     case 'DROPDOWN':
       return (
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={answer.value || '__none__'} onValueChange={(v) => { onChange(v === '__none__' ? '' : v, 'ok'); onSave(); }} disabled={disabled}>
-            <SelectTrigger className="w-48"><SelectValue placeholder="Select…" /></SelectTrigger>
+          <Select
+            value={answer.value || '__none__'}
+            onValueChange={(v) => {
+              onChange(v === '__none__' ? '' : v, 'ok');
+              onSave();
+            }}
+            disabled={disabled}
+          >
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Select…" />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="__none__">—</SelectItem>
-              {opts.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+              {opts.map((o) => (
+                <SelectItem key={o} value={o}>
+                  {o}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <StatusSelect answer={answer} disabled={disabled} onChange={onChange} onSave={onSave} />
@@ -521,9 +845,16 @@ function QuestionInput({
             {opts.map((o) => {
               const selected = answer.value === o;
               return (
-                <button key={o} type="button" disabled={disabled}
-                  onClick={() => { onChange(selected ? '' : o, selected ? 'pending' : 'ok'); onSave(); }}
-                  className={`rounded-full border px-3 py-1 text-xs transition-colors ${selected ? 'border-primary bg-primary text-primary-foreground' : 'border-border text-muted-foreground hover:bg-accent'}`}>
+                <button
+                  key={o}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => {
+                    onChange(selected ? '' : o, selected ? 'pending' : 'ok');
+                    onSave();
+                  }}
+                  className={`rounded-full border px-3 py-1 text-xs transition-colors ${selected ? 'border-primary bg-primary text-primary-foreground' : 'border-border text-muted-foreground hover:bg-accent'}`}
+                >
                   {o}
                 </button>
               );
@@ -541,13 +872,23 @@ function QuestionInput({
               const checkedList = answer.value ? answer.value.split(',') : [];
               const isChecked = checkedList.includes(o);
               return (
-                <label key={o} className="inline-flex cursor-pointer items-center gap-1.5 text-sm text-foreground">
-                  <input type="checkbox" checked={isChecked} disabled={disabled}
+                <label
+                  key={o}
+                  className="text-foreground inline-flex cursor-pointer items-center gap-1.5 text-sm"
+                >
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    disabled={disabled}
                     onChange={() => {
-                      const next = isChecked ? checkedList.filter((v) => v !== o) : [...checkedList, o];
-                      onChange(next.join(','), next.length > 0 ? 'ok' : 'pending'); onSave();
+                      const next = isChecked
+                        ? checkedList.filter((v) => v !== o)
+                        : [...checkedList, o];
+                      onChange(next.join(','), next.length > 0 ? 'ok' : 'pending');
+                      onSave();
                     }}
-                    className="size-4 rounded border-border" />
+                    className="border-border size-4 rounded"
+                  />
                   {o}
                 </label>
               );
@@ -562,13 +903,37 @@ function QuestionInput({
       return (
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex gap-2">
-            <BigToggle label="Yes" active={answer.status === 'ok'} color="success" disabled={disabled}
-              onClick={() => { onChange(answer.value, 'ok'); onSave(); }} />
-            <BigToggle label="No" active={answer.status === 'fail'} color="danger" disabled={disabled}
-              onClick={() => { onChange(answer.value, 'fail'); onSave(); }} />
+            <BigToggle
+              label="Yes"
+              active={answer.status === 'ok'}
+              color="success"
+              disabled={disabled}
+              onClick={() => {
+                onChange(answer.value, 'ok');
+                onSave();
+              }}
+            />
+            <BigToggle
+              label="No"
+              active={answer.status === 'fail'}
+              color="danger"
+              disabled={disabled}
+              onClick={() => {
+                onChange(answer.value, 'fail');
+                onSave();
+              }}
+            />
             {question.type === 'YES_NO_NA' ? (
-              <BigToggle label="N/A" active={answer.status === 'na'} color="neutral" disabled={disabled}
-                onClick={() => { onChange(answer.value, 'na'); onSave(); }} />
+              <BigToggle
+                label="N/A"
+                active={answer.status === 'na'}
+                color="neutral"
+                disabled={disabled}
+                onClick={() => {
+                  onChange(answer.value, 'na');
+                  onSave();
+                }}
+              />
             ) : null}
           </div>
         </div>
@@ -577,18 +942,43 @@ function QuestionInput({
     default:
       return (
         <div className="flex flex-wrap items-center gap-2">
-          <Input className="flex-1 min-w-40" placeholder="Answer…" value={answer.value} disabled={disabled}
-            onChange={(e) => onChange(e.target.value)} onBlur={onSave} />
+          <Input
+            className="min-w-40 flex-1"
+            placeholder="Answer…"
+            value={answer.value}
+            disabled={disabled}
+            onChange={(e) => onChange(e.target.value)}
+            onBlur={onSave}
+          />
           <StatusSelect answer={answer} disabled={disabled} onChange={onChange} onSave={onSave} />
         </div>
       );
   }
 }
 
-function StatusSelect({ answer, disabled, onChange, onSave }: { answer: LocalAnswer; disabled: boolean; onChange: (v: string, s?: string) => void; onSave: () => void }) {
+function StatusSelect({
+  answer,
+  disabled,
+  onChange,
+  onSave,
+}: {
+  answer: LocalAnswer;
+  disabled: boolean;
+  onChange: (v: string, s?: string) => void;
+  onSave: () => void;
+}) {
   return (
-    <Select value={answer.status} onValueChange={(value) => { onChange(answer.value, value); onSave(); }} disabled={disabled}>
-      <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+    <Select
+      value={answer.status}
+      onValueChange={(value) => {
+        onChange(answer.value, value);
+        onSave();
+      }}
+      disabled={disabled}
+    >
+      <SelectTrigger className="w-44">
+        <SelectValue />
+      </SelectTrigger>
       <SelectContent>
         <SelectItem value="pending">Pending</SelectItem>
         <SelectItem value="ok">Conformant</SelectItem>
@@ -599,13 +989,32 @@ function StatusSelect({ answer, disabled, onChange, onSave }: { answer: LocalAns
   );
 }
 
-function BigToggle({ label, active, color, disabled, onClick }: { label: string; active: boolean; color: 'success' | 'danger' | 'neutral'; disabled: boolean; onClick: () => void }) {
-  const activeClass = color === 'success' ? 'border-green-600 bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300' :
-    color === 'danger' ? 'border-red-600 bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300' :
-    'border-border bg-muted text-muted-foreground';
+function BigToggle({
+  label,
+  active,
+  color,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  color: 'success' | 'danger' | 'neutral';
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  const activeClass =
+    color === 'success'
+      ? 'border-green-600 bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300'
+      : color === 'danger'
+        ? 'border-red-600 bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300'
+        : 'border-border bg-muted text-muted-foreground';
   return (
-    <button type="button" disabled={disabled} onClick={onClick}
-      className={`rounded-md border px-4 py-1.5 text-sm font-medium transition-colors disabled:opacity-40 ${active ? activeClass : 'border-border text-muted-foreground hover:bg-accent'}`}>
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={`rounded-md border px-4 py-1.5 text-sm font-medium transition-colors disabled:opacity-40 ${active ? activeClass : 'border-border text-muted-foreground hover:bg-accent'}`}
+    >
       {label}
     </button>
   );
